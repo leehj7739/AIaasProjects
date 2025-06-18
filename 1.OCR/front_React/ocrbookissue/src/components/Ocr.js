@@ -46,13 +46,12 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
 
   // ok 버튼 클릭 핸들러
   const handleOk = () => {
-    console.log("OCR handleOk - 이동할 URL:", `/info?query=${ocrTitle}`);
     navigate(`/info?query=${encodeURIComponent(ocrTitle)}`);
     setStatus(null);
   };
 
   return (
-    <div className="relative flex flex-col items-center w-full h-full p-4 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div className="relative flex flex-col items-center w-full min-h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
       {/* 업로드 방식 토글 */}
       <div className={`flex gap-2 mb-4 w-full max-w-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 p-1 transition-colors duration-200 ${loading ? "pointer-events-none opacity-60" : ""}` }>
         <button

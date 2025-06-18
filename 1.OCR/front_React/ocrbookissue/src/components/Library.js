@@ -267,7 +267,7 @@ export default function Library() {
   );
 
   return (
-    <div className="flex flex-col items-center w-full min-h-0 flex-1 p-2 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
+    <div className="flex flex-col items-center w-full min-h-screen flex-1 p-2 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
       {/* 통합 검색창 */}
       <form className="w-full max-w-xs mb-2 flex gap-2" onSubmit={e => { e.preventDefault(); setSearch(query); }}>
         <input
@@ -279,7 +279,7 @@ export default function Library() {
         <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition">검색</button>
       </form>
       {/* 도서관 결과 리스트 */}
-      <div className="w-full max-w-xs bg-white/60 dark:bg-gray-800/60 rounded-xl shadow-inner p-3 mt-2">
+      <div className="w-full max-w-xs rounded-xl shadow-inner p-3 mt-2">
         {filtered.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">검색 결과가 없습니다.</div>
         ) : (

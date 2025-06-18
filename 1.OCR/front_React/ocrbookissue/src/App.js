@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import Main from "./components/Main";
@@ -11,6 +11,7 @@ import Library from "./components/Library";
 function App() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const location = useLocation();
 
   return (
     <div className="relative min-w-[320px] max-w-md w-full h-screen mx-auto bg-gray-100 dark:bg-gray-900 text-black dark:text-gray-100 flex flex-col border shadow-lg overflow-hidden">
