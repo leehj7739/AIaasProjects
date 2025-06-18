@@ -255,7 +255,10 @@ export default function Library() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const bookParam = params.get("book");
-    if (bookParam) setQuery(bookParam);
+    if (bookParam) {
+      setQuery(bookParam);
+      setSearch(bookParam);
+    }
   }, [location.search]);
 
   // 통합 검색: 도서명, 도서관명, 지역 모두 포함
@@ -276,7 +279,7 @@ export default function Library() {
         <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition">검색</button>
       </form>
       {/* 도서관 결과 리스트 */}
-      <div className={`w-full max-w-xs overflow-y-auto bg-white/60 dark:bg-gray-800/60 rounded-xl shadow-inner p-3 mt-2 ${filtered.length > 3 ? 'max-h-[340px]' : filtered.length === 0 ? 'min-h-[80px]' : `max-h-[${filtered.length*110}px]`}` }>
+      <div className="w-full max-w-xs bg-white/60 dark:bg-gray-800/60 rounded-xl shadow-inner p-3 mt-2">
         {filtered.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">검색 결과가 없습니다.</div>
         ) : (

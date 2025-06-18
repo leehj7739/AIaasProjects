@@ -33,13 +33,15 @@ function App() {
         </div>
       )}
       <Header />
-      <Routes>
-        <Route path="/ocr" element={<Ocr loading={loading} setLoading={setLoading} setSearchQuery={setSearchQuery} />} />
-        <Route path="/info" element={<Info searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
-        <Route path="/price" element={<Price />} />
-        <Route path="/library" element={<Library />} />
-        <Route path="/" element={<Main />} />
-      </Routes>
+      <div className="flex-1 overflow-y-auto">
+        <Routes>
+          <Route path="/ocr" element={<Ocr loading={loading} setLoading={setLoading} setSearchQuery={setSearchQuery} />} />
+          <Route path="/info" element={<Info searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+          <Route path="/price" element={<Price />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/" element={<Main />} />
+        </Routes>
+      </div>
       <Footer />
     </div>
   );

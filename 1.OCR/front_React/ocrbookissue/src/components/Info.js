@@ -18,12 +18,17 @@ export default function Info({ searchQuery, setSearchQuery }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const queryParam = params.get("query");
+    console.log("Info useEffect - 받은 URL 파라미터:", queryParam);
     if (queryParam) {
+      console.log("Info useEffect - 상태 업데이트 시작");
       setSearchQuery(queryParam);
       setSearch(queryParam);
       setSearched(true);
+      console.log("Info useEffect - dummyBooks:", dummyBooks);
       const found = dummyBooks.find(book => book.title === queryParam.trim());
+      console.log("Info useEffect - 검색 결과:", found);
       setResult(found || null);
+      console.log("Info useEffect - 상태 업데이트 완료");
     }
   }, [location.search, setSearchQuery]);
 
@@ -41,10 +46,6 @@ export default function Info({ searchQuery, setSearchQuery }) {
     setResult(found || null);
   };
 
-  useEffect(() => {
-    setSearched(false);
-  }, [search]);
-
   return (
     <div className="flex flex-col items-center w-full h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
       {/* 검색 영역 */}
@@ -55,7 +56,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
           <button type="submit" className="bg-blue-600 text-white px-4 rounded-r flex items-center justify-center font-bold hover:bg-blue-700 transition">검색</button>
         </div>
       </form>
-      {/* 추천 도서 정보: 항상 노출 (검색 전에는 이것만) */}
+      {/* 검색 전: 추천도서만 */}
       {!searched && (
         <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
           <div className="w-full mb-2 text-center">
@@ -83,32 +84,29 @@ export default function Info({ searchQuery, setSearchQuery }) {
           </div>
         </div>
       )}
-      {/* 검색 결과/없음/추천도서: 검색 후에만 노출 */}
+      {/* 검색 후: 결과가 있으면 결과만, 없으면 '없음' + 추천도서 */}
       {searched && (
-        <>
-          {result === null && search.trim() !== "" ? (
+        result ? (
+          <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
+            <div className="w-full mb-2 text-center">
+              <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">검색 결과</span>
+            </div>
+            <img src={result.img || "/book_image.jpg"} alt="책 표지" className="w-16 h-22 object-cover rounded-lg shadow-md mb-2" />
+            <div className="flex flex-col items-center w-full">
+              <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{result.title}</div>
+              <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {result.author}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{result.desc}</div>
+            </div>
+            <div className="flex gap-2 mt-4 w-full">
+              <button className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onClick={() => navigate(`/library?book=${encodeURIComponent(result.title)}`)}>대여하러 가기</button>
+              <button className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition" onClick={() => navigate(`/price?query=${encodeURIComponent(result.title)}`)}>가격비교</button>
+            </div>
+          </div>
+        ) : (
+          <>
             <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4 text-center text-gray-500">
               검색 결과가 없습니다.
             </div>
-          ) : result ? (
-            <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
-              <div className="w-full mb-2 text-center">
-                <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">검색 결과</span>
-              </div>
-              <img src={result.img || "/book_image.jpg"} alt="책 표지" className="w-16 h-22 object-cover rounded-lg shadow-md mb-2" />
-              <div className="flex flex-col items-center w-full">
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{result.title}</div>
-                <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {result.author}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{result.desc}</div>
-              </div>
-              <div className="flex gap-2 mt-4 w-full">
-                <button className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onClick={() => navigate(`/library?book=${encodeURIComponent(result.title)}`)}>대여하러 가기</button>
-                <button className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition" onClick={() => navigate(`/price?query=${encodeURIComponent(result.title)}`)}>가격비교</button>
-              </div>
-            </div>
-          ) : null}
-          {/* 추천 도서는 검색 결과가 없을 때만 표시 */}
-          {(result === null || !result) && (
             <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
               <div className="w-full mb-2 text-center">
                 <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">추천 도서</span>
@@ -118,10 +116,24 @@ export default function Info({ searchQuery, setSearchQuery }) {
                 <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{dummyBooks[0].title}</div>
                 <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {dummyBooks[0].author}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
+                <div className="flex gap-2 mt-4 w-full">
+                  <button 
+                    className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
+                    onClick={() => navigate(`/library?book=${encodeURIComponent(dummyBooks[0].title)}`)}
+                  >
+                    대여하러 가기
+                  </button>
+                  <button 
+                    className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition"
+                    onClick={() => navigate(`/price?query=${encodeURIComponent(dummyBooks[0].title)}`)}
+                  >
+                    가격비교
+                  </button>
+                </div>
               </div>
             </div>
-          )}
-        </>
+          </>
+        )
       )}
     </div>
   );

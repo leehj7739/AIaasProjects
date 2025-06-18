@@ -7,6 +7,8 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
   const [status, setStatus] = useState(null); // null | 'success' | 'error'
   const fileInputRef = useRef();
   const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [ocrTitle, setOcrTitle] = useState("위버멘쉬"); // 실제 OCR 결과로 대체 필요
 
   // 테스트용 로딩+성공/실패 시뮬레이션
   const handleTest = (result) => {
@@ -44,7 +46,8 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
 
   // ok 버튼 클릭 핸들러
   const handleOk = () => {
-    navigate("/info?query=위버멘쉬");
+    console.log("OCR handleOk - 이동할 URL:", `/info?query=${ocrTitle}`);
+    navigate(`/info?query=${encodeURIComponent(ocrTitle)}`);
     setStatus(null);
   };
 
@@ -104,7 +107,13 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
       ) : (
         <div className={`relative w-full max-w-xs mb-4 ${loading ? "pointer-events-none opacity-60" : ""}` }>
           <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">URL 이미지 전송</label>
-          <input type="text" className="w-full rounded px-2 py-1 border border-gray-300 dark:border-gray-600 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" value="data:image/jpeg;base64,/9j/4AAQSkZJRgAB..." readOnly />
+          <input 
+            type="text" 
+            className="w-full rounded px-2 py-1 border border-gray-300 dark:border-gray-600 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" 
+            placeholder="이미지 URL을 입력하세요"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           {/* 업로드 결과 메시지 */}
           {!loading && status === "success" && (
             <div className="mt-4 text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -167,7 +176,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             </div>
             <div className="mb-6 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
               <MdMenuBook className="text-violet-600 dark:text-violet-300" />
-              도서 제목 : <span className="font-bold text-blue-700 dark:text-blue-300">위버멘쉬</span>
+              도서 제목 : <span className="font-bold text-blue-700 dark:text-blue-300">{ocrTitle}</span>
             </div>
             <div className="flex justify-center gap-6 mt-2">
               <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold text-base shadow hover:from-green-500 hover:to-blue-600 transition-all duration-200 scale-100 hover:scale-105" onClick={handleOk}>ok</button>

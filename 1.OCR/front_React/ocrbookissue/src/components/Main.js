@@ -39,27 +39,27 @@ export default function Main() {
     <main className="flex-1 flex flex-col bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-2 overflow-x-hidden">
       {/* 추천 도서 카드 리스트 */}
       {books.map((book, idx) => (
-        <div key={idx} className={`w-full max-w-2xl mx-auto rounded-xl shadow-lg flex flex-col sm:flex-row items-center p-1 gap-1 mb-4 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-700'}`}>
+        <div key={idx} className={`w-full max-w-2xl mx-auto rounded-xl shadow-lg flex flex-col md:flex-row items-center md:items-stretch p-4 gap-4 mb-6 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-700'}`}>
           {/* 추천 도서 타이틀 (첫번째 카드만) */}
           {idx === 0 && (
-            <div className="w-full mb-1 text-center">
-              <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">추천 도서</span>
+            <div className="w-full md:w-1/3 mb-2 md:mb-0 flex flex-col items-center justify-center">
+              <span className="inline-block text-lg md:text-2xl font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow mb-2">추천 도서</span>
             </div>
           )}
           {/* 도서 이미지 */}
           <img
             src={book.img}
             alt="책 표지"
-            className="w-16 h-22 object-cover rounded-lg shadow-md"
+            className="w-16 h-22 md:w-24 md:h-32 object-cover rounded-lg shadow-md mx-auto md:mx-0"
           />
           {/* 도서 정보 */}
-          <div className="flex-1 flex flex-col justify-between h-full">
+          <div className="flex-1 flex flex-col justify-between h-full mt-2 md:mt-0">
             <div>
               <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{book.title}</div>
               <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {book.author}</div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{book.desc}</div>
             </div>
-            <div className="flex items-center gap-0.5 mt-0.5">
+            <div className="flex items-center gap-1 mt-1">
               <span className="text-base">🏆</span>
               <span className="text-gray-700 dark:text-gray-200 text-xs">현재 대여 순위</span>
               <span className="text-teal-600 dark:text-teal-300 font-bold ml-0.5 text-xs">{book.rank} 위</span>
