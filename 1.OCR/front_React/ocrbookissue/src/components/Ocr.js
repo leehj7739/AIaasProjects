@@ -1,14 +1,72 @@
 import React, { useState, useRef } from "react";
 import { MdAutoAwesome, MdMenuBook } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
+import { apiService } from "../services/api";
+import FallbackImage from "./FallbackImage";
 
 export default function Ocr({ loading, setLoading, setSearchQuery }) {
   const [mode, setMode] = useState("image"); // 'image' or 'url'
   const [status, setStatus] = useState(null); // null | 'success' | 'error'
+  const [errorMessage, setErrorMessage] = useState(""); // 에러 메시지
   const fileInputRef = useRef();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [ocrTitle, setOcrTitle] = useState("위버멘쉬"); // 실제 OCR 결과로 대체 필요
+
+  // 실제 이미지 업로드 API 호출
+  const handleImageUpload = async (file) => {
+    try {
+      setLoading(true);
+      setStatus(null);
+      setErrorMessage("");
+      
+      const response = await apiService.uploadImage(file);
+      
+      // API 응답에서 OCR 결과 추출
+      const { title, confidence, text } = response.data;
+      setOcrTitle(title || "제목을 찾을 수 없습니다");
+      
+      setStatus("success");
+      console.log("OCR 결과:", response.data);
+      
+    } catch (error) {
+      console.error("이미지 업로드 에러:", error);
+      setStatus("error");
+      setErrorMessage(error.response?.data?.message || "이미지 업로드에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 실제 URL 업로드 API 호출
+  const handleUrlUpload = async () => {
+    if (!search.trim()) {
+      setErrorMessage("URL을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setStatus(null);
+      setErrorMessage("");
+      
+      const response = await apiService.processUrl(search);
+      
+      // API 응답에서 OCR 결과 추출
+      const { title, confidence, text } = response.data;
+      setOcrTitle(title || "제목을 찾을 수 없습니다");
+      
+      setStatus("success");
+      console.log("OCR 결과:", response.data);
+      
+    } catch (error) {
+      console.error("URL 업로드 에러:", error);
+      setStatus("error");
+      setErrorMessage(error.response?.data?.message || "URL 처리에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 테스트용 로딩+성공/실패 시뮬레이션
   const handleTest = (result) => {
@@ -25,12 +83,23 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  // 파일 선택 시 처리 (여기서는 파일명만 alert, 실제 업로드 연동 가능)
+  // 파일 선택 시 처리
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      alert(`선택된 파일: ${file.name}`);
-      // 실제 업로드 로직 연동 가능
+      // 파일 크기 체크 (30MB)
+      if (file.size > 30 * 1024 * 1024) {
+        setErrorMessage("파일 크기는 30MB 이하여야 합니다.");
+        return;
+      }
+      
+      // 파일 타입 체크
+      if (!file.type.startsWith('image/')) {
+        setErrorMessage("이미지 파일만 업로드 가능합니다.");
+        return;
+      }
+      
+      handleImageUpload(file);
     }
   };
 
@@ -99,7 +168,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
           )}
           {!loading && status === "error" && (
             <div className="mt-4 text-red-600 dark:text-red-400 flex items-center gap-1">
-              <span>❌</span> 업로드 실패. 다시 시도해 주세요.
+              <span>❌</span> {errorMessage || "업로드 실패. 다시 시도해 주세요."}
             </div>
           )}
         </div>
@@ -121,7 +190,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
           )}
           {!loading && status === "error" && (
             <div className="mt-4 text-red-600 dark:text-red-400 flex items-center gap-1">
-              <span>❌</span> 업로드 실패. 다시 시도해 주세요.
+              <span>❌</span> {errorMessage || "업로드 실패. 다시 시도해 주세요."}
             </div>
           )}
           {/* URL 업로드 테스트용 버튼 */}
@@ -134,7 +203,12 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
         </div>
       )}
 
-      <button className={`w-full max-w-xs py-3 bg-blue-500 text-white rounded font-bold text-base hover:bg-blue-600 ${loading ? "pointer-events-none opacity-60" : ""}`}>이미지 업로드</button>
+      <button 
+        className={`w-full max-w-xs py-3 bg-blue-500 text-white rounded font-bold text-base hover:bg-blue-600 ${loading ? "pointer-events-none opacity-60" : ""}`}
+        onClick={mode === "image" ? () => fileInputRef.current?.click() : handleUrlUpload}
+      >
+        {mode === "image" ? "이미지 업로드" : "URL 업로드"}
+      </button>
 
       {/* 테스트용 버튼: 이미지 모드에서만 표시 */}
       {mode === "image" && (
@@ -164,12 +238,12 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             <div className="flex justify-center items-end gap-8 mb-6">
               {/* 오리지널 이미지 */}
               <div className="flex flex-col items-center group">
-                <img src="/book_image.jpg" alt="오리지널 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110" />
+                <FallbackImage src="/dummy-image.png" alt="오리지널 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110" />
                 <span className="text-xs mt-2 text-gray-500">오리지널</span>
               </div>
               {/* OCR 박싱 이미지 */}
               <div className="flex flex-col items-center group">
-                <img src="/book_image.jpg" alt="OCR 결과 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110" />
+                <FallbackImage src="/dummy-image.png" alt="OCR 결과 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110" />
                 <span className="text-xs mt-2 text-blue-500 font-bold">OCR 결과</span>
               </div>
             </div>

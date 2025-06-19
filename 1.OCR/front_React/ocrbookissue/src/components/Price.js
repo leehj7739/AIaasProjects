@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import FallbackImage from "./FallbackImage";
 
 const dummyPrices = [
   { mall: "교보문고", price: 12000, url: "https://www.kyobobook.co.kr", logo: "/favicon.ico" },
@@ -55,7 +56,7 @@ export default function Price() {
             {results.map((item, idx) => (
               <li key={item.mall} className="flex items-center justify-between bg-white dark:bg-gray-700 rounded p-2 shadow flex-nowrap">
                 <span className="w-2/5 text-left font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                  <img src={item.logo} alt={item.mall + ' 로고'} className="w-5 h-5 rounded bg-white border mr-1" />
+                  <FallbackImage src={item.logo} alt={item.mall + ' 로고'} className="w-5 h-5 rounded bg-white border mr-1" />
                   {item.mall}
                 </span>
                 <span className="w-2/5 text-right text-blue-600 dark:text-blue-300 font-bold">{item.price.toLocaleString()}원</span>

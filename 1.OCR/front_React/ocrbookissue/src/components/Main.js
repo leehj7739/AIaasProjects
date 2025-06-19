@@ -1,33 +1,34 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import FallbackImage from "./FallbackImage";
 
 export default function Main() {
   const navigate = useNavigate();
   // 추천 도서 더미 데이터
   const books = [
     {
-      img: "/book_image.jpg",
+      img: "https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9788960861234.jpg",
       title: "위버멘쉬",
       author: "프리드리히 니체",
       desc: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
       rank: 123
     },
     {
-      img: "/book_image.jpg",
+      img: "https://image.yes24.com/goods/34705631/XL",
       title: "데미안",
       author: "헤르만 헤세",
       desc: "자아를 찾아가는 성장의 여정",
       rank: 45
     },
     {
-      img: "/book_image.jpg",
+      img: "https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9788937460449.jpg",
       title: "호밀밭의 파수꾼",
       author: "J.D. 샐린저",
       desc: "청춘의 방황과 진실에 대한 갈망",
       rank: 87
     },
     {
-      img: "/book_image.jpg",
+      img: "https://contents.kyobobook.co.kr/sih/fit-in/458x0/pdt/9788982739396.jpg",
       title: "1984",
       author: "조지 오웰",
       desc: "감시와 통제, 자유에 대한 경고",
@@ -47,7 +48,7 @@ export default function Main() {
             </div>
           )}
           {/* 도서 이미지 */}
-          <img
+          <FallbackImage
             src={book.img}
             alt="책 표지"
             className="w-16 h-22 md:w-24 md:h-32 object-cover rounded-lg shadow-md mx-auto md:mx-0"
