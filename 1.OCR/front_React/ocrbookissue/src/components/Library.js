@@ -63,6 +63,7 @@ function getShortRegionName(fullRegion) {
   if (fullRegion.includes('전라남') || fullRegion.includes('전남')) return '전남';
   if (fullRegion.includes('경상북') || fullRegion.includes('경북')) return '경북';
   if (fullRegion.includes('경상남') || fullRegion.includes('경남')) return '경남';
+  if (fullRegion.includes('강원')) return '강원';
   
   // 정확한 매칭
   const regionMap = {
@@ -117,7 +118,6 @@ export default function Library() {
   const [hasMore, setHasMore] = useState(true);
   const [isISBNSearch, setIsISBNSearch] = useState(false);
   const [isbnInfo, setIsbnInfo] = useState(null);
-  const [displayPage, setDisplayPage] = useState(1);
   const [displayLibraries, setDisplayLibraries] = useState([]);
   const location = useLocation();
   const containerRef = useRef(null);
@@ -125,49 +125,116 @@ export default function Library() {
   // 페이지당 아이템 수
   const ITEMS_PER_PAGE = 20;
 
+  // 검색 결과 필터링 (캐싱된 데이터에서 검색)
+  const filtered = libraries.filter(lib => {
+    // ISBN 검색 결과의 경우 lib 객체 안에 있는 데이터 구조
+    const displayLib = lib.lib || lib;
+    
+    const region = displayLib.region || displayLib.regionName || (displayLib.address ? displayLib.address.split(' ')[0].replace(/특별시|광역시|도/g, '') : '기타');
+    const shortRegion = getShortRegionName(region);
+    
+    const searchFields = [
+      displayLib.libName,
+      displayLib.libCode,
+      displayLib.address,
+      displayLib.tel,
+      displayLib.phone,
+      displayLib.homepage,
+      region,
+      shortRegion
+    ];
+    
+    const searchTerm = search.toLowerCase();
+    return searchFields.some(field => 
+      field && field.toString().toLowerCase().includes(searchTerm)
+    );
+  });
+
   // 페이지 변경 시 도서관 목록 업데이트
   useEffect(() => {
     if (libraries.length > 0) {
-      const startIndex = 0;
-      const endIndex = displayPage * ITEMS_PER_PAGE;
-      const currentLibraries = libraries.slice(startIndex, endIndex);
-      setDisplayLibraries(currentLibraries);
-      setHasMore(endIndex < libraries.length);
-      
-      // 플로팅 버튼 디버깅
-      console.log(`📊 도서관 데이터 상태: 전체 ${libraries.length}개, 표시 ${currentLibraries.length}개, 플로팅 버튼 표시: ${currentLibraries.length > 20}`);
+      if (search.trim()) {
+        // 검색어가 있는 경우: 필터링된 결과를 페이지별로 표시
+        const startIndex = 0;
+        const endIndex = currentPage * ITEMS_PER_PAGE;
+        const currentSearchResults = filtered.slice(startIndex, endIndex);
+        setDisplayLibraries(currentSearchResults);
+        setHasMore(currentSearchResults.length < filtered.length);
+      } else {
+        // 검색어가 없는 경우: 캐싱된 도서관 목록을 페이지별로 표시
+        const startIndex = 0;
+        const endIndex = currentPage * ITEMS_PER_PAGE;
+        const currentLibraries = libraries.slice(startIndex, endIndex);
+        setDisplayLibraries(currentLibraries);
+        setHasMore(endIndex < libraries.length);
+      }
     }
-  }, [displayPage, libraries]);
+  }, [currentPage, libraries, search]);
 
   // 더 보기 버튼 클릭
-  const loadMore = () => {
-    setDisplayPage(prev => prev + 1);
+  const loadMore = async () => {
+    const currentTotal = currentPage * ITEMS_PER_PAGE;
+    const remainingCached = libraries.length - currentTotal;
+    
+    if (remainingCached >= ITEMS_PER_PAGE) {
+      // 캐싱된 데이터가 충분한 경우
+      setCurrentPage(prev => prev + 1);
+    } else {
+      // 캐싱된 데이터가 부족한 경우 API 호출
+      await loadMoreFromAPI();
+    }
+  };
+
+  // API에서 추가 데이터 로드
+  const loadMoreFromAPI = async () => {
+    try {
+      setLoading(true);
+      
+      // 현재 캐싱된 데이터의 페이지 수 추정
+      const estimatedCurrentPages = Math.ceil(libraries.length / 100);
+      const nextPage = estimatedCurrentPages + 1;
+      
+      const response = await apiService.getLibrary(nextPage, 100);
+      const newLibraries = response.data.response?.libs || response.data.libs || [];
+      
+      if (newLibraries.length > 0) {
+        // 새로운 데이터를 캐싱에 추가
+        const updatedLibraries = [...libraries, ...newLibraries];
+        setLibraries(updatedLibraries);
+        
+        // 페이지 업데이트
+        setCurrentPage(prev => prev + 1);
+        setHasMore(newLibraries.length === 100); // 100개씩 가져오므로 100개면 더 있을 가능성
+      } else {
+        // 더 이상 데이터가 없으면 버튼 숨기기
+        setHasMore(false);
+      }
+      
+    } catch (error) {
+      // API 호출 실패 시 버튼 숨기기
+      setHasMore(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 최상단 이동 함수
   const scrollToTop = () => {
-    console.log("🔝 최상단 이동 버튼 클릭됨");
-    
     // 실제 스크롤 컨테이너 찾기
     const scrollContainer = document.querySelector('div[class="flex-1 overflow-y-auto"]');
     if (scrollContainer) {
       try {
         scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-        console.log("✅ 실제 스크롤 컨테이너 스크롤 실행됨");
       } catch (e) {
         scrollContainer.scrollTop = 0;
-        console.log("⚠️ scrollContainer.scrollTop fallback");
       }
     } else {
-      console.log("❌ 스크롤 컨테이너를 찾을 수 없음");
       // fallback으로 window 스크롤 시도
       window.scrollTo(0, 0);
       setTimeout(() => {
         try {
           window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-          console.log("✅ window.scrollTo fallback 실행됨");
         } catch (e) {
-          console.log("⚠️ window.scrollTo fallback 실패");
         }
       }, 100);
     }
@@ -189,23 +256,16 @@ export default function Library() {
       setLoading(true);
       setError("");
       
-      console.log("🔍 도서관 데이터 가져오기 시작...");
-      
       if (pageNo === 1) {
         // 첫 페이지 로드 시 병렬 처리로 여러 페이지를 동시에 가져오기
-        console.log("🚀 병렬 처리로 대량 데이터 로드 시작...");
         const parallelResponse = await apiService.getLibraryParallel(1, 5, 100, 3);
-        
-        console.log("📊 병렬 처리 결과:", parallelResponse);
         
         if (parallelResponse.libraries && parallelResponse.libraries.length > 0) {
           setLibraries(parallelResponse.libraries);
           setHasMore(parallelResponse.totalPages >= 5);
           setCurrentPage(5);
-          console.log(`✅ 병렬 처리 완료: ${parallelResponse.libraries.length}개 도서관 데이터 로드`);
         } else {
           // 병렬 처리 실패 시 기존 방식으로 폴백
-          console.log("⚠️ 병렬 처리 실패 - 기존 방식으로 폴백");
           const response = await apiService.getLibrary(pageNo, 100);
           const libraryData = response.data.response?.libs || response.data.libs || [];
           setLibraries(libraryData);
@@ -222,7 +282,6 @@ export default function Library() {
       }
       
     } catch (error) {
-      console.error("❌ 도서관 데이터 가져오기 에러:", error);
       setError("도서관 정보를 가져오는데 실패했습니다. 더미 데이터를 사용합니다.");
       
       // 에러 시 더미 데이터 사용
@@ -271,10 +330,6 @@ export default function Library() {
     if ((searchTypeParam === 'isbn' || searchTypeParam === 'all' || searchTypeParam === 'single') && librariesParam) {
       try {
         const isbnLibraries = JSON.parse(librariesParam);
-        console.log("📚 ISBN 기반 도서관 검색 결과 파싱:", isbnLibraries);
-        console.log("📚 검색 타입:", searchTypeParam);
-        console.log("📚 도서관 개수:", isbnLibraries.length);
-        
         // ISBN 검색 상태 설정
         setIsISBNSearch(true);
         setIsbnInfo({
@@ -289,7 +344,6 @@ export default function Library() {
         // 도서관 데이터 구조 변환
         const processedLibraries = isbnLibraries.map(item => {
           const lib = item.lib || item;
-          console.log("📚 개별 도서관 데이터:", lib);
           return {
             libCode: lib.libCode,
             libName: lib.libName,
@@ -304,16 +358,10 @@ export default function Library() {
           };
         });
         
-        console.log("📚 처리된 도서관 데이터:", processedLibraries);
-        console.log("📚 처리된 도서관 개수:", processedLibraries.length);
-        
         setLibraries(processedLibraries);
         setHasMore(false); // ISBN 검색 결과는 한 번에 모든 결과를 가져옴
         
-        console.log("✅ ISBN 기반 도서관 검색 결과 설정 완료:", processedLibraries.length, "개");
-        
       } catch (error) {
-        console.error("❌ ISBN 기반 도서관 검색 결과 파싱 실패:", error);
         // 파싱 실패 시 기존 방식으로 도서관 데이터 로드
         setIsISBNSearch(false);
         setIsbnInfo(null);
@@ -331,38 +379,70 @@ export default function Library() {
   const handleSearch = (e) => {
     e.preventDefault();
     setSearch(query);
-    setDisplayPage(1); // 페이지 리셋
+    setCurrentPage(1); // 검색 시 페이지 리셋
   };
 
-  // 검색 결과 필터링 (캐싱된 데이터에서 검색)
-  const filtered = displayLibraries.filter(lib => {
-    // ISBN 검색 결과의 경우 lib 객체 안에 있는 데이터 구조
-    const displayLib = lib.lib || lib;
+  // 캐싱된 도서관 목록을 20개씩 보여주기
+  const showCachedLibraryList = () => {
+    const startIndex = 0;
+    const endIndex = currentPage * ITEMS_PER_PAGE;
+    const currentLibraries = libraries.slice(startIndex, endIndex);
     
-    const region = displayLib.region || displayLib.regionName || (displayLib.address ? displayLib.address.split(' ')[0].replace(/특별시|광역시|도/g, '') : '기타');
-    const shortRegion = getShortRegionName(region);
-    
-    const searchFields = [
-      displayLib.libName,
-      displayLib.libCode,
-      displayLib.address,
-      displayLib.tel,
-      displayLib.phone,
-      displayLib.homepage,
-      region,
-      shortRegion
-    ];
-    
-    const searchTerm = search.toLowerCase();
-    return searchFields.some(field => 
-      field && field.toString().toLowerCase().includes(searchTerm)
-    );
-  });
+    setDisplayLibraries(currentLibraries);
+    setHasMore(endIndex < libraries.length);
+  };
 
-  console.log("🔍 현재 검색어:", search);
-  console.log("🔍 전체 도서관 개수:", libraries.length);
-  console.log("🔍 필터링된 도서관 개수:", filtered.length);
-  console.log("🔍 필터링된 도서관:", filtered);
+  // 추가 데이터를 가져와서 캐싱 데이터에 추가
+  const fetchAdditionalDataAndAddToCache = async (searchQuery) => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      // 현재 캐싱된 데이터의 페이지 수 추정
+      const estimatedCurrentPages = Math.ceil(libraries.length / 100);
+      const startPage = estimatedCurrentPages + 1;
+      const endPage = startPage + 4; // 5페이지 추가로 가져오기
+      
+      // 병렬 처리로 여러 페이지를 동시에 가져오기
+      const parallelResponse = await apiService.getLibraryParallel(startPage, endPage, 100, 5);
+      
+      if (parallelResponse.libraries && parallelResponse.libraries.length > 0) {
+        // 새로운 데이터를 기존 캐싱 데이터에 추가
+        const updatedLibraries = [...libraries, ...parallelResponse.libraries];
+        setLibraries(updatedLibraries);
+        
+        // 검색 결과가 있으면 에러 메시지 클리어
+        setError("");
+      } else {
+        setError("추가 데이터를 가져올 수 없습니다.");
+      }
+      
+    } catch (error) {
+      setError("추가 데이터를 가져오는데 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 캐시 비우기 및 새로고침
+  const clearCacheAndRefresh = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      // API 서비스의 캐시 비우기
+      apiService.clearCache();
+      
+      // 새로운 데이터 가져오기
+      await fetchLibraries(1, search);
+      
+    } catch (error) {
+      console.error("❌ 캐시 비우기 실패:", error);
+      setError("캐시 비우기에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ISBN 검색 결과 클리어
   const clearISBNResults = () => {
@@ -378,20 +458,14 @@ export default function Library() {
   const searchMoreFromServer = async () => {
     try {
       setLoading(true);
-      console.log("🔍 서버에서 병렬 검색 시작:", search);
       
       // 현재 캐싱된 데이터의 페이지 수 추정 (100개씩 로드한다고 가정)
       const estimatedCurrentPages = Math.ceil(libraries.length / 100);
       const startPage = estimatedCurrentPages + 1; // 추정된 페이지 다음부터 시작
       const endPage = startPage + 9; // 최대 10페이지까지 병렬 검색
       
-      console.log(`🔍 현재 캐싱된 데이터: ${libraries.length}개 (추정 ${estimatedCurrentPages}페이지)`);
-      console.log(`🔍 ${startPage}~${endPage}페이지 병렬 검색 시작`);
-      
       // 병렬 처리로 여러 페이지를 동시에 검색
       const parallelResponse = await apiService.getLibraryParallel(startPage, endPage, 100, 5);
-      
-      console.log("📊 병렬 검색 결과:", parallelResponse);
       
       if (parallelResponse.libraries && parallelResponse.libraries.length > 0) {
         // 검색어로 필터링
@@ -416,15 +490,12 @@ export default function Library() {
         });
         
         if (filteredData.length > 0) {
-          console.log(`✅ 병렬 검색으로 ${filteredData.length}개 결과 발견`);
           setLibraries(prev => [...prev, ...filteredData]);
           setError(""); // 에러 메시지 클리어
         } else {
-          console.log(`❌ 병렬 검색 완료했지만 결과를 찾을 수 없음`);
           setError("더 많은 페이지를 검색했지만 결과를 찾을 수 없습니다.");
         }
       } else {
-        console.log(`❌ 병렬 검색 실패 또는 데이터 없음`);
         setError("서버에서 추가 데이터를 가져올 수 없습니다.");
       }
       
@@ -465,7 +536,7 @@ export default function Library() {
       )}
 
       {/* 검색 결과 헤더 */}
-      {search && !isISBNSearch && (
+      {search && !isISBNSearch ? (
         <div className="w-full max-w-xs bg-green-50 dark:bg-green-900 rounded-lg p-3 mb-3 text-center">
           <div className="text-lg font-bold text-green-700 dark:text-green-300 mb-1">
             🔍 도서관 검색 결과
@@ -474,10 +545,22 @@ export default function Library() {
             검색어: {search}
           </div>
           <div className="text-xs text-green-500 dark:text-green-400">
-            {libraries.length > 0 ? `총 ${libraries.length}개 중 ${filtered.length}개 로드됨` : '전체 데이터에서 검색 중'}
+            {libraries.length > 0 ? `총 ${libraries.length}개 중 ${displayLibraries.length}개 로드됨` : '전체 데이터에서 검색 중'}
           </div>
         </div>
-      )}
+      ) : !search && !isISBNSearch && libraries.length > 0 ? (
+        <div className="w-full max-w-xs bg-blue-50 dark:bg-blue-900 rounded-lg p-3 mb-3 text-center">
+          <div className="text-lg font-bold text-blue-700 dark:text-blue-300 mb-1">
+            📚 도서관 목록
+          </div>
+          <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+            캐싱된 도서관 데이터
+          </div>
+          <div className="text-xs text-blue-500 dark:text-blue-400">
+            총 {libraries.length}개 중 {displayLibraries.length}개 표시
+          </div>
+        </div>
+      ) : null}
 
       {/* ISBN 기반 검색 결과 헤더 */}
       {isISBNSearch && isbnInfo && (
@@ -517,12 +600,27 @@ export default function Library() {
                 </div>
                 <button 
                   onClick={() => {
-                    console.log("🔍 서버에서 추가 데이터 검색:", search);
-                    searchMoreFromServer();
+                    fetchAdditionalDataAndAddToCache(search);
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition"
                 >
-                  🚀 병렬 검색 (10페이지 동시)
+                  🔍 추가 데이터 가져오기 (5페이지)
+                </button>
+                <button 
+                  onClick={() => {
+                    searchMoreFromServer();
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition"
+                >
+                  🚀 대량 병렬 검색 (10페이지)
+                </button>
+                <button 
+                  onClick={() => {
+                    clearCacheAndRefresh();
+                  }}
+                  className="px-4 py-2 bg-orange-600 text-white rounded font-bold hover:bg-orange-700 transition"
+                >
+                  🗑️ 캐시 비우기 & 새로고침
                 </button>
               </div>
             )}
@@ -581,12 +679,15 @@ export default function Library() {
       </div>
 
       {/* 더 보기 버튼 */}
-      {!loading && hasMore && filtered.length > 0 && (
+      {!loading && hasMore && displayLibraries.length > 0 && (
         <button 
           onClick={loadMore}
           className="w-full max-w-xs mt-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-violet-400"
         >
-          📚 더 많은 도서관 로드 (20건 더)
+          {search.trim() ? 
+            `📚 더 많은 검색 결과 로드 (${ITEMS_PER_PAGE}건 더)` : 
+            `📚 더 많은 도서관 로드 (${ITEMS_PER_PAGE}건 더)`
+          }
         </button>
       )}
 
@@ -594,7 +695,6 @@ export default function Library() {
       {displayLibraries.length > 20 && (
         <button
           onClick={(e) => {
-            console.log("🔘 플로팅 버튼 클릭 이벤트 발생");
             e.preventDefault();
             e.stopPropagation();
             scrollToTop();
