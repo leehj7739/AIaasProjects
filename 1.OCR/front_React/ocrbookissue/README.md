@@ -1,70 +1,83 @@
-# Getting Started with Create React App
+# OCR 도서 검색 애플리케이션
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 🚀 주요 기능
 
-## Available Scripts
+- **OCR 이미지 업로드**: 책 표지 이미지를 업로드하여 텍스트 추출
+- **URL 이미지 업로드**: 온라인 이미지 URL을 통한 텍스트 추출
+- **도서 검색**: 추출된 텍스트를 바탕으로 도서 정보 검색
+- **도서관 검색**: ISBN을 통한 도서관 대여 정보 검색
+- **가격 비교**: 온라인 서점 가격 비교
 
-In the project directory, you can run:
+## 🔧 API 키 설정
 
-### `npm start`
+### 도서관 API 키 설정
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+1. [국립중앙도서관 데이터서비스](https://www.data4library.kr/)에서 API 키를 발급받으세요.
+2. 프로젝트 루트에 `.env` 파일을 생성하고 다음 내용을 추가하세요:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```env
+REACT_APP_LIBRARY_API_KEY=your_actual_api_key_here
+```
 
-### `npm test`
+3. API 키가 설정되지 않으면 테스트용 더미 데이터가 사용됩니다.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 🔍 키워드 검색 개선사항
 
-### `npm run build`
+### 키워드 전처리
+- **앞의 두 단어만 사용**: 긴 검색어에서 앞의 두 단어만 추출
+- **여러 키워드 개별 매개변수**: 공백으로 구분된 키워드를 개별 매개변수로 전송
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 예시
+```
+검색어: "위버멘쉬 프리드리히 니체"
+전처리된 키워드: "위버멘쉬 프리드리히"
+개별 키워드: ["위버멘쉬", "프리드리히", "니체"]
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 키워드별 더미 데이터
+API 호출 실패 시 키워드에 따라 다른 더미 데이터를 반환:
+- 니체/위버멘쉬 → 니체 관련 도서
+- 헤세/데미안 → 헤세 관련 도서
+- 샐린저/호밀밭 → 샐린저 관련 도서
+- 카뮈/시지프 → 카뮈 관련 도서
+- 동물/농장 → 오웰 관련 도서
+- 작은/왕자 → 생텍쥐페리 관련 도서
+- 해리/포터 → 해리포터 시리즈
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 🛠️ 설치 및 실행
 
-### `npm run eject`
+```bash
+# 의존성 설치
+npm install
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# 개발 서버 실행
+npm start
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# 빌드
+npm run build
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 📁 프로젝트 구조
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```
+src/
+├── components/          # React 컴포넌트
+│   ├── Ocr.js          # OCR 이미지 업로드
+│   ├── Info.js         # 도서 정보 검색
+│   ├── Library.js      # 도서관 검색
+│   └── Price.js        # 가격 비교
+├── services/           # API 서비스
+│   └── api.js          # 도서관 API 호출
+└── utils/              # 유틸리티 함수
+```
 
-## Learn More
+## 🔧 기술 스택
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- **Frontend**: React, Tailwind CSS
+- **API**: 국립중앙도서관 데이터서비스 API
+- **Image Processing**: Canvas API, Image Resizing
+- **HTTP Client**: Axios
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 📝 라이선스
 
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+MIT License

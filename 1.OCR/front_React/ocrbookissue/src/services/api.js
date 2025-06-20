@@ -5,6 +5,9 @@ import xml2js from 'xml2js';
 const API_KEY = process.env.REACT_APP_API_KEY;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://data4library.kr';
 
+// FastAPI 서버 URL
+const FASTAPI_BASE_URL = 'http://192.168.45.120:8000';
+
 // 캐시 설정
 const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
 const CACHE_KEY = 'library_cache';
@@ -246,23 +249,80 @@ api.interceptors.response.use(
   }
 );
 
+// FastAPI 서버 헬스체크 함수
+const healthCheck = {
+  // 기본 헬스체크
+  checkHealth: async () => {
+    try {
+      console.log('🔍 FastAPI 서버 헬스체크 시작...');
+      const startTime = Date.now();
+      
+      const response = await axios.get(`${FASTAPI_BASE_URL}/api/health`, {
+        timeout: 5000, // 5초 타임아웃
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      
+      console.log(`✅ FastAPI 서버 헬스체크 성공: ${responseTime}ms`);
+      
+      return {
+        status: 'healthy',
+        data: response.data,
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('❌ FastAPI 서버 헬스체크 실패:', error.message);
+      
+      let errorDetails = {
+        message: error.message,
+        code: error.code || 'UNKNOWN'
+      };
+      
+      if (error.response) {
+        errorDetails.statusCode = error.response.status;
+        errorDetails.statusText = error.response.statusText;
+        errorDetails.data = error.response.data;
+      } else if (error.request) {
+        errorDetails.type = 'NETWORK_ERROR';
+        errorDetails.details = '서버에 연결할 수 없습니다';
+      }
+      
+      return {
+        status: 'unhealthy',
+        error: errorDetails,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+};
+
 // API 함수들
 export const apiService = {
-  // OCR 이미지 업로드
-  uploadImage: async (imageFile) => {
+  // OCR + GPT 통합 이미지 업로드 (FastAPI /extract-and-analyze 엔드포인트)
+  uploadImage: async (imageFile, mode = "prod", gptPrompt = "책 제목 추출") => {
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('file', imageFile);
+    formData.append('mode', mode);
+    formData.append('gpt_prompt', gptPrompt);
     
-    return api.post('/ocr/upload', formData, {
+    console.log('📤 이미지 업로드 시작:', {
+      fileName: imageFile.name,
+      fileSize: imageFile.size,
+      mode: mode,
+      gptPrompt: gptPrompt
+    });
+    
+    return axios.post(`${FASTAPI_BASE_URL}/api/ocr/extract-and-analyze`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 60000, // 60초 타임아웃 (OCR + GPT 처리 시간 고려)
     });
-  },
-
-  // OCR URL 처리
-  processUrl: async (imageUrl) => {
-    return api.post('/ocr/url', { url: imageUrl });
   },
 
   // 책 정보 가져오기
@@ -281,21 +341,26 @@ export const apiService = {
   },
 
   // 라이브러리 목록 가져오기 (캐싱 적용)
-  getLibrary: async (pageNo = 1, pageSize = 20) => {
+  getLibrary: async (pageNo = 1, pageSize = 20, ignoreCache = false) => {
     const cacheKey = cacheUtils.generateCacheKey(pageNo, pageSize);
     
-    // 1. 메모리 캐시 확인
-    let cachedData = cacheUtils.getFromMemory(cacheKey);
-    if (cachedData) {
-      return cachedData;
-    }
-    
-    // 2. 로컬 스토리지 캐시 확인
-    cachedData = cacheUtils.getFromStorage(cacheKey);
-    if (cachedData) {
-      // 메모리 캐시에도 저장
-      cacheUtils.setToMemory(cacheKey, cachedData);
-      return cachedData;
+    // 캐시 무시 옵션이 false인 경우에만 캐시 확인
+    if (!ignoreCache) {
+      // 1. 메모리 캐시 확인
+      let cachedData = cacheUtils.getFromMemory(cacheKey);
+      if (cachedData) {
+        return cachedData;
+      }
+      
+      // 2. 로컬 스토리지 캐시 확인
+      cachedData = cacheUtils.getFromStorage(cacheKey);
+      if (cachedData) {
+        // 메모리 캐시에도 저장
+        cacheUtils.setToMemory(cacheKey, cachedData);
+        return cachedData;
+      }
+    } else {
+      console.log("🔄 캐시 무시하고 새로운 데이터 요청:", cacheKey);
     }
     
     // 3. API 호출
@@ -576,13 +641,30 @@ export const apiService = {
   searchBooksByKeyword: async (keyword, pageNo = 1, pageSize = 10) => {
     const apiKey = process.env.REACT_APP_LIBRARY_API_KEY || 'test_api_key_123';
     
+    // API 키가 테스트 키인지 확인
+    const isTestKey = apiKey === 'test_api_key_123';
+    if (isTestKey) {
+      console.warn("⚠️ 테스트 API 키 사용 중 - 실제 API 호출이 실패할 수 있습니다.");
+    }
+    
+    // 키워드 전처리: 앞의 두 단어만 추출
+    const processKeyword = (keyword) => {
+      const words = keyword.trim().split(/\s+/).filter(word => word.length > 0);
+      return words.slice(0, 2).join(' ');
+    };
+    
+    const processedKeyword = processKeyword(keyword);
+    
     console.log("🔍 키워드 도서 검색 API 호출:", keyword);
+    console.log("📝 전처리된 키워드 (앞 2단어):", processedKeyword);
+    console.log("🔑 API 키:", isTestKey ? "테스트 키 (실제 API 호출 실패 예상)" : "실제 키");
     
     try {
+      // 항상 앞의 두 단어만 keyword로 사용
       const response = await axios.get(`http://data4library.kr/api/srchBooks`, {
         params: {
           authKey: apiKey,
-          keyword: keyword,
+          keyword: processedKeyword,
           pageNo,
           pageSize
         },
@@ -607,12 +689,23 @@ export const apiService = {
       
     } catch (error) {
       console.error('키워드 도서 검색 API 호출 실패:', error);
+      console.error('에러 상세 정보:', {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       
       // CORS 에러인 경우 프록시 사용
       if (error.code === 'ERR_NETWORK' || error.message.includes('CORS')) {
         console.log("🔄 CORS 에러 - 프록시 사용");
+        
+        // 단일 키워드 프록시 URL
+        const targetUrl = `http://data4library.kr/api/srchBooks?authKey=${apiKey}&keyword=${encodeURIComponent(processedKeyword)}&pageNo=${pageNo}&pageSize=${pageSize}`;
+        
+        console.log("🔗 프록시 URL:", targetUrl);
         const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-        const targetUrl = `http://data4library.kr/api/srchBooks?authKey=${apiKey}&keyword=${encodeURIComponent(keyword)}&pageNo=${pageNo}&pageSize=${pageSize}`;
         
         try {
           const proxyResponse = await axios.get(proxyUrl + targetUrl, {
@@ -637,48 +730,23 @@ export const apiService = {
           };
         } catch (proxyError) {
           console.error('프록시 키워드 검색 호출도 실패:', proxyError);
+          console.error('프록시 에러 상세 정보:', {
+            message: proxyError.message,
+            code: proxyError.code,
+            status: proxyError.response?.status,
+            statusText: proxyError.response?.statusText,
+            data: proxyError.response?.data
+          });
         }
       }
-      
-      // 에러 시 더미 데이터 반환
-      console.log("⚠️ 에러 발생 - 더미 키워드 검색 데이터 사용");
+      // 에러 시 빈 결과 반환
+      console.log("⚠️ API 호출 실패 - 검색 결과 없음");
       return {
         data: {
           response: {
-            docs: [
-              {
-                doc: {
-                  bookname: "위버멘쉬",
-                  authors: "프리드리히 니체",
-                  publisher: "더클래식",
-                  bookImageURL: "/dummy-image.png",
-                  description: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
-                  isbn13: "9788960861234"
-                }
-              },
-              {
-                doc: {
-                  bookname: "데미안",
-                  authors: "헤르만 헤세",
-                  publisher: "민음사",
-                  bookImageURL: "https://image.aladin.co.kr/product/32425/0/cover500/k112939963_1.jpg",
-                  description: "자아를 찾아가는 성장의 여정",
-                  isbn13: "9788937473456"
-                }
-              },
-              {
-                doc: {
-                  bookname: "호밀밭의 파수꾼",
-                  authors: "J.D. 샐린저",
-                  publisher: "민음사",
-                  bookImageURL: "https://image.aladin.co.kr/product/32425/0/cover500/k112939963_2.jpg",
-                  description: "청춘의 방황과 진실에 대한 갈망",
-                  isbn13: "9788937473463"
-                }
-              }
-            ],
-            numFound: 3,
-            resultNum: 3
+            docs: [],
+            numFound: 0,
+            resultNum: 0
           }
         }
       };
@@ -1074,14 +1142,25 @@ export const apiService = {
 
   // 병렬 처리를 통한 키워드 검색 (여러 페이지 동시 검색)
   searchBooksByKeywordParallel: parallelUtils.measurePerformance('searchBooksByKeywordParallel', async (keyword, maxPages = 3, pageSize = 20, maxConcurrency = 3) => {
+    // 키워드 전처리: 앞의 두 단어만 추출
+    const processKeyword = (keyword) => {
+      const words = keyword.trim().split(/\s+/).filter(word => word.length > 0);
+      return words.slice(0, 2).join(' ');
+    };
+    
+    const processedKeyword = processKeyword(keyword);
+    
     console.log(`🚀 병렬 키워드 검색: "${keyword}" (최대 ${maxPages}페이지)`);
+    console.log(`📝 전처리된 키워드 (앞 2단어): "${processedKeyword}"`);
     
     const pageNumbers = Array.from({ length: maxPages }, (_, i) => i + 1);
     
     // 각 페이지별 검색 태스크 생성
     const tasks = pageNumbers.map(pageNo => async () => {
       try {
-        console.log(`📄 "${keyword}" ${pageNo}페이지 검색 중...`);
+        console.log(`📄 "${processedKeyword}" ${pageNo}페이지 검색 중...`);
+        
+        // 개선된 키워드 검색 함수 사용
         const response = await apiService.searchBooksByKeyword(keyword, pageNo, pageSize);
         
         if (response.data?.response?.docs?.doc) {
@@ -1089,12 +1168,12 @@ export const apiService = {
             ? response.data.response.docs.doc 
             : [response.data.response.docs.doc];
           
-          console.log(`✅ "${keyword}" ${pageNo}페이지: ${books.length}개 도서`);
+          console.log(`✅ "${processedKeyword}" ${pageNo}페이지: ${books.length}개 도서`);
           return { pageNo, books, success: true };
         }
         return { pageNo, books: [], success: true };
       } catch (error) {
-        console.error(`❌ "${keyword}" ${pageNo}페이지 검색 실패:`, error);
+        console.error(`❌ "${processedKeyword}" ${pageNo}페이지 검색 실패:`, error);
         return { pageNo, error, success: false };
       }
     });
@@ -1114,12 +1193,15 @@ export const apiService = {
     const allBooks = successfulResults.flatMap(result => result.books);
 
     console.log(`🎉 병렬 키워드 검색 완료: 총 ${allBooks.length}개 도서`);
+    console.log(`🔍 사용된 키워드: "${processedKeyword}" (원본: "${keyword}")`);
     
     return {
       books: allBooks,
       totalPages: successfulResults.length,
       failedPages,
-      totalCount: allBooks.length
+      totalCount: allBooks.length,
+      processedKeyword: processedKeyword,
+      originalKeyword: keyword
     };
   }),
 
@@ -1179,7 +1261,10 @@ export const apiService = {
       failedPages,
       totalCount: allBooks.length
     };
-  })
+  }),
+
+  // 헬스체크 메서드
+  healthCheck: healthCheck.checkHealth
 };
 
 // 주기적 캐시 정리 (1시간마다)
@@ -1187,4 +1272,5 @@ setInterval(() => {
   cacheUtils.cleanup();
 }, CACHE_DURATION);
 
-export default api; 
+export default api;
+export { healthCheck }; 
