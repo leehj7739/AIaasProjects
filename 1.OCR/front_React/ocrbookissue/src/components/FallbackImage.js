@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useCallback } from "react";
 
 const FALLBACK_SRC = "/dummy-image.png";
 
-export default function FallbackImage({ src, alt, ...props }) {
-  const handleError = e => {
+const FallbackImage = React.memo(({ src, alt, ...props }) => {
+  const handleError = useCallback(e => {
     if (!e.target.src.endsWith(FALLBACK_SRC)) {
       e.target.src = FALLBACK_SRC;
     }
-  };
+  }, []);
+
   return (
     <img
       src={src && src.trim() !== "" ? src : FALLBACK_SRC}
@@ -16,4 +17,8 @@ export default function FallbackImage({ src, alt, ...props }) {
       {...props}
     />
   );
-} 
+});
+
+FallbackImage.displayName = 'FallbackImage';
+
+export default FallbackImage; 

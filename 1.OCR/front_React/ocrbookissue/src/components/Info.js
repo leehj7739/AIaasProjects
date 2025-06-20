@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiService } from "../services/api";
 import FallbackImage from "./FallbackImage";
 
+// 더미 도서 데이터를 컴포넌트 외부로 이동하여 매번 새로 생성되지 않도록 함
 const dummyBooks = [
-  { title: "위버멘쉬", author: "프리드리히 니체", desc: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언", img: "https://image.aladin.co.kr/product/32425/0/cover500/k112939963_1.jpg", isbn: "9788960861234" },
-  { title: "데미안", author: "헤르만 헤세", desc: "자아를 찾아가는 성장의 여정", img: "https://image.aladin.co.kr/product/32425/0/cover500/8937460446_1.jpg", isbn: "9788937473456" },
-  { title: "호밀밭의 파수꾼", author: "J.D. 샐린저", desc: "청춘의 방황과 진실에 대한 갈망", img: "https://image.aladin.co.kr/product/32425/0/cover500/8937460447_1.jpg", isbn: "9788937473463" },
-  { title: "1984", author: "조지 오웰", desc: "감시와 통제, 자유에 대한 경고", img: "https://image.aladin.co.kr/product/32425/0/cover500/8982739394_1.jpg", isbn: "9788937473470" }
+  {
+    title: "위버멘쉬",
+    author: "프리드리히 니체",
+    publisher: "더클래식",
+    desc: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
+    img: "/dummy-image.png",
+    isbn: "9788960861234"
+  }
 ];
 
 // ISBN 정규식 검증 함수
@@ -163,27 +168,48 @@ export default function Info({ searchQuery, setSearchQuery }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [allSearchResults, setAllSearchResults] = useState([]);
+  const [keywordResponse, setKeywordResponse] = useState(null); // 키워드 검색 응답 저장
   const navigate = useNavigate();
   const location = useLocation();
 
   // 페이지당 아이템 수
   const ITEMS_PER_PAGE = 20;
 
-  // 페이지 변경 시 검색 결과 업데이트
-  useEffect(() => {
+  // 검색 결과 메모이제이션
+  const currentSearchResults = useMemo(() => {
     if (allSearchResults.length > 0) {
       const startIndex = 0;
       const endIndex = currentPage * ITEMS_PER_PAGE;
-      const currentResults = allSearchResults.slice(startIndex, endIndex);
-      setSearchResults(currentResults);
-      setHasMore(endIndex < allSearchResults.length);
+      return allSearchResults.slice(startIndex, endIndex);
     }
-  }, [currentPage, allSearchResults]);
+    return [];
+  }, [allSearchResults, currentPage]);
 
-  // 더 보기 버튼 클릭
-  const loadMore = () => {
-    setCurrentPage(prev => prev + 1);
-  };
+  const hasMoreResults = useMemo(() => {
+    return currentSearchResults.length < allSearchResults.length;
+  }, [currentSearchResults.length, allSearchResults.length]);
+
+  // 검색 타입 표시 메모이제이션
+  const searchTypeDisplay = useMemo(() => {
+    if (!searchType) return "";
+    
+    switch (searchType) {
+      case "isbn":
+        return "📖 ISBN 상세조회";
+      case "title":
+        return "🚀 병렬 제목 검색 (3페이지)";
+      case "keyword":
+        return "🔍 키워드 검색 결과 (제목 검색 실패)";
+      default:
+        return "";
+    }
+  }, [searchType]);
+
+  // 페이지 변경 시 검색 결과 업데이트
+  useEffect(() => {
+    setSearchResults(currentSearchResults);
+    setHasMore(hasMoreResults);
+  }, [currentSearchResults, hasMoreResults]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -196,12 +222,25 @@ export default function Info({ searchQuery, setSearchQuery }) {
     }
   }, [location.search, setSearchQuery]);
 
-  const performSearch = async (searchTerm) => {
+  // searchQuery prop이 변경될 때 자동으로 검색 실행
+  useEffect(() => {
+    if (searchQuery && searchQuery.trim()) {
+      setSearch(searchQuery);
+      setSearched(true);
+      // performSearch 함수가 정의된 후에 호출되도록 setTimeout 사용
+      setTimeout(() => {
+        performSearch(searchQuery);
+      }, 0);
+    }
+  }, [searchQuery]);
+
+  const performSearch = useCallback(async (searchTerm) => {
     if (!searchTerm.trim()) {
       setResult(null);
       setSearchResults([]);
       setSearched(false);
       setSearchType("");
+      setKeywordResponse(null); // 키워드 응답도 리셋
       return;
     }
 
@@ -223,35 +262,23 @@ export default function Info({ searchQuery, setSearchQuery }) {
         let bookData = null;
         let loanInfo = null;
         
-        // 구조 1: detail[0].book
-        if (response.data?.response?.detail?.[0]?.book) {
-          bookData = response.data.response.detail[0].book;
-          loanInfo = response.data.response.loanInfo;
-          console.log("✅ 구조 1로 데이터 추출 성공");
-        }
-        // 구조 2: detail.book (배열이 아닌 경우)
-        else if (response.data?.response?.detail?.book) {
-          bookData = response.data.response.detail.book;
-          loanInfo = response.data.response.loanInfo;
-          console.log("✅ 구조 2로 데이터 추출 성공");
-        }
-        // 구조 3: 직접 book 객체
-        else if (response.data?.response?.book) {
+        // 응답 구조에 따른 데이터 추출
+        if (response.data?.response?.book) {
           bookData = response.data.response.book;
           loanInfo = response.data.response.loanInfo;
-          console.log("✅ 구조 3으로 데이터 추출 성공");
-        }
-        // 구조 4: 다른 가능한 구조들
-        else if (response.data?.response?.docs?.doc) {
-          const doc = Array.isArray(response.data.response.docs.doc) 
-            ? response.data.response.docs.doc[0] 
-            : response.data.response.docs.doc;
-          bookData = doc;
-          console.log("✅ 구조 4로 데이터 추출 성공");
+        } else if (response.data?.response?.docs?.doc) {
+          const docs = Array.isArray(response.data.response.docs.doc) 
+            ? response.data.response.docs.doc 
+            : [response.data.response.docs.doc];
+          if (docs.length > 0) {
+            bookData = docs[0];
+          }
+        } else if (response.data?.response) {
+          bookData = response.data.response;
         }
         
         console.log("📚 추출된 도서 데이터:", bookData);
-        console.log("📊 추출된 대출 정보:", loanInfo);
+        console.log("📊 대출 정보:", loanInfo);
         
         if (bookData) {
           // bookImageURL, img에 /book_image.jpg가 들어오면 /dummy-image.png로 대체
@@ -304,29 +331,64 @@ export default function Info({ searchQuery, setSearchQuery }) {
           setCurrentPage(1); // 페이지 리셋
           setResult(null);
         } else {
-          console.log("❌ 제목 검색 결과가 없습니다.");
-          setAllSearchResults([]);
-          setSearchResults([]);
-          setResult(null);
+          console.log("❌ 제목 검색 결과가 없습니다. 키워드 검색을 시도합니다.");
+          
+          // 제목 검색 결과가 없으면 키워드 검색 실행
+          console.log("🔍 키워드 검색 실행:", searchTerm);
+          setSearchType("keyword");
+          
+          const keywordResponse = await apiService.searchBooksByKeywordParallel(searchTerm, 3, 20, 3);
+          
+          console.log("📄 병렬 키워드 검색 응답:", keywordResponse);
+          
+          // 키워드 검색 응답 저장
+          setKeywordResponse(keywordResponse);
+          
+          if (keywordResponse.books && keywordResponse.books.length > 0) {
+            const processedKeywordResults = keywordResponse.books.map(book => {
+              let imgUrl = book.bookImageURL || book.img || "";
+              if (imgUrl.includes("/book_image.jpg")) imgUrl = "/dummy-image.png";
+              return {
+                title: book.bookname || book.title,
+                author: book.authors || book.author,
+                publisher: book.publisher,
+                desc: book.description || book.desc,
+                img: imgUrl || "/dummy-image.png",
+                isbn: book.isbn13 || book.isbn
+              };
+            });
+            
+            console.log("📚 키워드 검색 결과:", processedKeywordResults);
+            setAllSearchResults(processedKeywordResults);
+            setCurrentPage(1); // 페이지 리셋
+            setResult(null);
+          } else {
+            console.log("❌ 키워드 검색 결과도 없습니다.");
+            setAllSearchResults([]);
+            setSearchResults([]);
+            setResult(null);
+            setKeywordResponse(null); // 키워드 응답도 리셋
+          }
         }
       }
     } catch (error) {
       console.error("❌ 검색 실패:", error);
       setResult(null);
       setSearchResults([]);
+      setKeywordResponse(null); // 키워드 응답도 리셋
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSearch = (e) => {
+  const handleSearch = useCallback((e) => {
     e.preventDefault();
     setSearchQuery(search);
     performSearch(search);
-  };
+  }, [search, setSearchQuery, performSearch]);
 
   // 모든 지역 병렬 검색 (빠른 속도)
-  const searchAllRegions = async (isbn, bookTitle) => {
+  const searchAllRegions = useCallback(async (isbn, bookTitle) => {
     console.log("🔍 모든 지역 병렬 검색 시작:", isbn);
     
     try {
@@ -339,10 +401,10 @@ export default function Info({ searchQuery, setSearchQuery }) {
       console.error("❌ 병렬 검색 실패:", error);
       return [];
     }
-  };
+  }, []);
 
   // ISBN 기반 도서관 검색 실행
-  const handleLibrarySearch = async (isbn, bookTitle) => {
+  const handleLibrarySearch = useCallback(async (isbn, bookTitle) => {
     if (!isbn) {
       console.log("❌ ISBN이 없어서 도서관 검색을 건너뜁니다.");
       navigate(`/library?book=${encodeURIComponent(bookTitle)}`);
@@ -383,7 +445,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
       // 에러 시 기존 방식으로 이동
       navigate(`/library?book=${encodeURIComponent(bookTitle)}`);
     }
-  };
+  }, [navigate, searchAllRegions]);
 
   return (
     <div className="flex flex-col items-center w-full h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
@@ -409,7 +471,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
         </div>
         {searchType && (
           <div className="text-xs text-gray-500 mt-1">
-            {searchType === "isbn" ? "📖 ISBN 상세조회" : "🚀 병렬 제목 검색 (3페이지)"}
+            {searchTypeDisplay}
           </div>
         )}
       </form>
@@ -499,7 +561,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
             <div className="w-full max-w-xs">
               <div className="text-center mb-3">
                 <span className="text-lg font-extrabold text-purple-700 dark:text-purple-300">
-                  🔍 검색 결과 ({allSearchResults.length}건 중 {searchResults.length}건 로드됨)
+                  🔍 제목 검색 결과 ({allSearchResults.length}건 중 {searchResults.length}건 로드됨)
                 </span>
               </div>
               <div className="space-y-3">
@@ -543,7 +605,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
               {/* 더 보기 버튼 */}
               {hasMore && (
                 <button 
-                  onClick={loadMore}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
                   className="w-full mt-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-violet-400"
                 >
                   📚 더 많은 도서 로드 (20건 더)
@@ -552,8 +614,72 @@ export default function Info({ searchQuery, setSearchQuery }) {
             </div>
           )}
 
+          {/* 키워드 검색 결과 (도서 리스트) */}
+          {searchType === "keyword" && searchResults.length > 0 && (
+            <div className="w-full max-w-xs">
+              <div className="text-center mb-3">
+                <span className="text-lg font-extrabold text-orange-700 dark:text-orange-300">
+                  🔍 키워드 검색 결과 ({allSearchResults.length}건 중 {searchResults.length}건 로드됨)
+                </span>
+                <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                  제목 검색 결과가 없어서 키워드로 검색한 결과입니다
+                </div>
+                <div className="text-xs text-orange-500 dark:text-orange-400 mt-1 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">
+                  🔑 검색 키워드: "{keywordResponse?.processedKeyword || search}" (원본: "{keywordResponse?.originalKeyword || search}")
+                </div>
+              </div>
+              <div className="space-y-3">
+                {searchResults.map((book, index) => (
+                  <div key={index} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg shadow p-3 border border-orange-200 dark:border-orange-700">
+                    <div className="flex gap-3">
+                      <FallbackImage src={book.img} alt="책 표지" className="w-12 h-16 object-cover rounded shadow" />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1">{book.title}</div>
+                        <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {book.author}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판사: {book.publisher}</div>
+                        {book.publication_year && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판년도: {book.publication_year}</div>
+                        )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">분류: {book.desc}</div>
+                        {book.loan_count && (
+                          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
+                            📚 대출: {parseInt(book.loan_count).toLocaleString()}회
+                          </div>
+                        )}
+                        <div className="flex gap-1 mt-2">
+                          <button 
+                            className="flex-1 py-1 px-2 rounded bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition"
+                            onClick={() => handleLibrarySearch(book.isbn, book.title)}
+                          >
+                            대여
+                          </button>
+                          <button 
+                            className="flex-1 py-1 px-2 rounded bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition"
+                            onClick={() => navigate(`/price?query=${encodeURIComponent(book.title)}`)}
+                          >
+                            가격
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 더 보기 버튼 */}
+              {hasMore && (
+                <button 
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="w-full mt-4 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-orange-400"
+                >
+                  📚 더 많은 도서 로드 (20건 더)
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 검색 결과 없음 */}
-          {searched && !loading && ((searchType === "isbn" && !result) || (searchType === "title" && searchResults.length === 0)) && (
+          {searched && !loading && ((searchType === "isbn" && !result) || (searchType === "title" && searchResults.length === 0) || (searchType === "keyword" && searchResults.length === 0)) && (
             <>
               <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4 text-center">
                 <div className="text-lg font-extrabold text-red-600 dark:text-red-400 mb-2">🔍 검색 결과 없음</div>
@@ -561,7 +687,10 @@ export default function Info({ searchQuery, setSearchQuery }) {
                   "{search}"에 대한 검색 결과가 없습니다.
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-500">
-                  {searchType === "isbn" ? "올바른 ISBN을 입력했는지 확인해주세요." : "다른 제목으로 검색해보세요."}
+                  {searchType === "isbn" ? "올바른 ISBN을 입력했는지 확인해주세요." : 
+                   searchType === "title" ? "제목 검색 후 키워드 검색도 시도했지만 결과가 없습니다." :
+                   searchType === "keyword" ? "제목 검색과 키워드 검색 모두 시도했지만 결과가 없습니다." : 
+                   "다른 검색어로 시도해보세요."}
                 </div>
               </div>
               <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
