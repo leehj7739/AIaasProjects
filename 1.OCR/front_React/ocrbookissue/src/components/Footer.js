@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  HiOutlineHome,
+  HiOutlineMagnifyingGlass,
+  HiOutlineBookOpen,
+  HiOutlineBuildingLibrary,
+  HiOutlineClock
+} from "react-icons/hi2";
 
 const items = [
-  { to: "/", icon: "🏠", label: "홈" },
-  { to: "/ocr", icon: "🔍", label: "Ocr 검색" },
-  { to: "/info", icon: "📖", label: "도서 검색" },
-  { to: "/library", icon: "🏢", label: "도서관 검색" },
-  { to: "/price", icon: "💰", label: "가격비교" },
+  { to: "/", icon: <HiOutlineHome className="w-6 h-6" />, label: "홈" },
+  { to: "/ocr", icon: <HiOutlineMagnifyingGlass className="w-6 h-6" />, label: "Ocr 검색" },
+  { to: "/info", icon: <HiOutlineBookOpen className="w-6 h-6" />, label: "도서 검색" },
+  { to: "/library", icon: <HiOutlineBuildingLibrary className="w-6 h-6" />, label: "도서관 검색" },
+  { to: "/history", icon: <HiOutlineClock className="w-6 h-6" />, label: "히스토리" },
 ];
 
 export default function Footer() {
@@ -42,12 +49,12 @@ export default function Footer() {
         <React.Fragment key={idx}>
           {item.to.startsWith("/") ? (
             <Link to={item.to === "#" && idx === items.length - 1 ? "/price" : item.to} className="flex-1 flex flex-col items-center justify-center">
-              <span className="text-2xl">{item.icon}</span>
+              <span>{item.icon}</span>
               <span className="text-xs mt-0.5 text-white dark:text-gray-200">{item.label}</span>
             </Link>
           ) : (
             <button className="flex-1 flex flex-col items-center justify-center">
-              <span className="text-2xl">{item.icon}</span>
+              <span>{item.icon}</span>
               <span className="text-xs mt-0.5 text-white dark:text-gray-200">{item.label}</span>
             </button>
           )}

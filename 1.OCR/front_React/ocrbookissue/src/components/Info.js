@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiService } from "../services/api";
 import FallbackImage from "./FallbackImage";
+import { HiXCircle } from "react-icons/hi2";
 
 // 더미 도서 데이터를 컴포넌트 외부로 이동하여 매번 새로 생성되지 않도록 함
 const dummyBooks = [
@@ -34,132 +35,9 @@ const normalizeISBN = (isbn) => {
   return isbn.replace(/[-\s]/g, '');
 };
 
-// 지역코드 옵션 (상수)
-const regionOptions = [
-  { code: "11", name: "서울" },
-  { code: "21", name: "부산" },
-  { code: "22", name: "대구" },
-  { code: "23", name: "인천" },
-  { code: "24", name: "광주" },
-  { code: "25", name: "대전" },
-  { code: "26", name: "울산" },
-  { code: "29", name: "세종" },
-  { code: "31", name: "경기" },
-  { code: "32", name: "강원" },
-  { code: "33", name: "충북" },
-  { code: "34", name: "충남" },
-  { code: "35", name: "전북" },
-  { code: "36", name: "전남" },
-  { code: "37", name: "경북" },
-  { code: "38", name: "경남" },
-  { code: "39", name: "제주" }
-];
-
-// 지역별 색상 매핑
-const regionColors = {
-  '서울': 'bg-blue-400 text-white',
-  '경기': 'bg-green-400 text-white',
-  '부산': 'bg-red-400 text-white',
-  '대구': 'bg-purple-400 text-white',
-  '인천': 'bg-yellow-400 text-gray-900',
-  '광주': 'bg-green-600 text-white',
-  '대전': 'bg-orange-400 text-white',
-  '울산': 'bg-cyan-400 text-gray-900',
-  '세종': 'bg-violet-400 text-white',
-  '강원': 'bg-indigo-400 text-white',
-  '충북': 'bg-yellow-300 text-gray-900',
-  '충남': 'bg-orange-300 text-gray-900',
-  '전북': 'bg-green-300 text-gray-900',
-  '전남': 'bg-blue-300 text-gray-900',
-  '경북': 'bg-red-300 text-gray-900',
-  '경남': 'bg-green-200 text-gray-900',
-  '제주': 'bg-yellow-200 text-gray-900',
-  '기타': 'bg-gray-300 text-gray-900',
-};
-
-// 지역명 축약형 변환 함수 (개선된 버전)
-function getShortRegionName(fullRegion) {
-  if (!fullRegion) return '기타';
-  
-  // 지역코드인 경우 처리
-  const regionCodeToName = {
-    "11": "서울",
-    "21": "부산", 
-    "22": "대구",
-    "23": "인천",
-    "24": "광주",
-    "25": "대전",
-    "26": "울산",
-    "29": "세종",
-    "31": "경기",
-    "32": "강원",
-    "33": "충북",
-    "34": "충남",
-    "35": "전북",
-    "36": "전남",
-    "37": "경북",
-    "38": "경남",
-    "39": "제주"
-  };
-  
-  // 지역코드인 경우 바로 변환
-  if (regionCodeToName[fullRegion]) {
-    return regionCodeToName[fullRegion];
-  }
-  
-  // 특별한 경우 먼저 처리 (가장 구체적인 매칭)
-  if (fullRegion.includes('충청북') || fullRegion.includes('충북')) return '충북';
-  if (fullRegion.includes('충청남') || fullRegion.includes('충남')) return '충남';
-  if (fullRegion.includes('전라북') || fullRegion.includes('전북')) return '전북';
-  if (fullRegion.includes('전라남') || fullRegion.includes('전남')) return '전남';
-  if (fullRegion.includes('경상북') || fullRegion.includes('경북')) return '경북';
-  if (fullRegion.includes('경상남') || fullRegion.includes('경남')) return '경남';
-  
-  // 정확한 매칭
-  const regionMap = {
-    '서울': '서울',
-    '경기': '경기',
-    '부산': '부산',
-    '대구': '대구',
-    '인천': '인천',
-    '광주': '광주',
-    '대전': '대전',
-    '울산': '울산',
-    '세종': '세종',
-    '강원': '강원',
-    '제주': '제주'
-  };
-  
-  // 정확한 매칭 먼저 시도
-  if (regionMap[fullRegion]) {
-    return regionMap[fullRegion];
-  }
-  
-  // 앞 5글자로 매칭 (충청, 전라, 경상은 제외)
-  const prefix = fullRegion.substring(0, 5);
-  for (const [key, value] of Object.entries(regionMap)) {
-    if (prefix.includes(key) || key.includes(prefix)) {
-      return value;
-    }
-  }
-  
-  // 주소에서 지역 추출 시도
-  if (fullRegion.includes('특별시') || fullRegion.includes('광역시') || fullRegion.includes('도')) {
-    const extractedRegion = fullRegion.split(' ')[0].replace(/특별시|광역시|도/g, '');
-    if (regionMap[extractedRegion]) {
-      return regionMap[extractedRegion];
-    }
-  }
-  
-  return fullRegion;
-}
-
-function getRegionColor(region) {
-  return regionColors[region] || regionColors['기타'];
-}
-
 export default function Info({ searchQuery, setSearchQuery }) {
   const [search, setSearch] = useState("");
+  const [committedSearch, setCommittedSearch] = useState("");
   const [result, setResult] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searched, setSearched] = useState(false);
@@ -195,11 +73,11 @@ export default function Info({ searchQuery, setSearchQuery }) {
     
     switch (searchType) {
       case "isbn":
-        return "📖 ISBN 상세조회";
+        return "📖 ISBN 도서 검색";
       case "title":
-        return "🚀 병렬 제목 검색 (3페이지)";
+        return "🚀 도서제목 검색";
       case "keyword":
-        return "🔍 키워드 검색 결과 (제목 검색 실패)";
+        return "🔍 키워드 검색";
       default:
         return "";
     }
@@ -244,6 +122,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
       return;
     }
 
+    setResult(null); // 검색 시작 시 바로 초기화
     setLoading(true);
     setSearched(true);
 
@@ -258,12 +137,18 @@ export default function Info({ searchQuery, setSearchQuery }) {
         console.log("📄 ISBN 검색 응답 데이터:", response.data);
         console.log("📄 ISBN 검색 응답 구조:", response.data?.response);
         
-        // 다양한 응답 구조 시도
+        // 응답 구조에 따른 데이터 추출
         let bookData = null;
         let loanInfo = null;
         
-        // 응답 구조에 따른 데이터 추출
-        if (response.data?.response?.book) {
+        if (response.data?.response?.detail) {
+          // detail이 배열일 수도 있고 객체일 수도 있음
+          const detail = Array.isArray(response.data.response.detail)
+            ? response.data.response.detail[0]
+            : response.data.response.detail;
+          bookData = detail.book;
+          loanInfo = response.data.response.loanInfo;
+        } else if (response.data?.response?.book) {
           bookData = response.data.response.book;
           loanInfo = response.data.response.loanInfo;
         } else if (response.data?.response?.docs?.doc) {
@@ -383,6 +268,8 @@ export default function Info({ searchQuery, setSearchQuery }) {
 
   const handleSearch = useCallback((e) => {
     e.preventDefault();
+    setSearched(true);
+    setCommittedSearch(search);
     setSearchQuery(search);
     performSearch(search);
   }, [search, setSearchQuery, performSearch]);
@@ -448,19 +335,32 @@ export default function Info({ searchQuery, setSearchQuery }) {
   }, [navigate, searchAllRegions]);
 
   return (
-    <div className="flex flex-col items-center w-full h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
+    <div className="flex flex-col items-center w-full min-h-screen p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
       {/* 검색 영역 */}
       <form className="w-full max-w-xs mb-4" onSubmit={handleSearch}>
         <label className="block text-sm font-bold text-gray-700 dark:text-gray-100 mb-1">도서 정보 검색</label>
         <div className="flex">
-          <input 
-            type="text" 
-            className="flex-1 rounded-l px-2 py-2 border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" 
-            placeholder="도서 제목 or ISBN" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            maxLength={30}
-          />
+          <div className="relative flex-1">
+            <input 
+              type="text" 
+              className="w-full rounded-l px-2 py-2 border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-8" 
+              placeholder="도서제목 또는 ISBN을 입력해 주세요" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              maxLength={30}
+            />
+            {search && (
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-transparent border-none p-0 text-gray-400 hover:text-gray-600 focus:outline-none"
+                onClick={() => setSearch("")}
+                tabIndex={-1}
+                aria-label="입력 지우기"
+              >
+                <HiXCircle className="w-5 h-5" />
+              </button>
+            )}
+          </div>
           <button 
             type="submit" 
             className="bg-blue-600 text-white px-4 rounded-r flex items-center justify-center font-bold hover:bg-blue-700 transition"
@@ -494,7 +394,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
           <div className="flex flex-col items-center w-full">
             <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{dummyBooks[0].title}</div>
             <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {dummyBooks[0].author}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
+            {dummyBooks[0].desc && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
+            )}
             <div className="flex gap-2 mt-4 w-full">
               <button 
                 className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
@@ -502,14 +404,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
               >
                 대여하러 가기
               </button>
-              <button 
-                className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition"
-                onClick={() => navigate(`/price?query=${encodeURIComponent(dummyBooks[0].title)}`)}
-              >
-                가격비교
-              </button>
             </div>
           </div>
+          <div className="mb-2" />
         </div>
       )}
 
@@ -518,40 +415,45 @@ export default function Info({ searchQuery, setSearchQuery }) {
         <>
           {/* ISBN 검색 결과 (단일 도서) */}
           {searchType === "isbn" && result && (
-            <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
-              <div className="w-full mb-2 text-center">
-                <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">📖 ISBN 검색 결과</span>
+            <div className="w-full max-w-md mx-auto">
+              <div className="text-center mb-4">
+                <span className="text-2xl font-extrabold text-purple-700 dark:text-purple-300 drop-shadow">ISBN 검색 결과</span>
               </div>
-              <FallbackImage src={result.img} alt="책 표지" className="w-16 h-22 object-cover rounded-lg shadow-md mb-2" />
-              <div className="flex flex-col items-center w-full">
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5 text-center">{result.title}</div>
-                <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {result.author}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판사: {result.publisher}</div>
-                {result.publication_year && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판년도: {result.publication_year}</div>
-                )}
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 text-center">{result.desc}</div>
-                
-                {/* 대출 정보 표시 */}
-                {result.loanInfo && (
-                  <div className="w-full mt-2 p-2 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                    <div className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-1">📊 대출 통계</div>
-                    {result.loanInfo.Total && (
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">
-                        전체 대출: {result.loanInfo.Total.loanCnt}회 (순위: {result.loanInfo.Total.ranking}위)
-                      </div>
-                    )}
-                    {result.loanInfo.ageResult && result.loanInfo.ageResult.age && (
-                      <div className="text-xs text-blue-600 dark:text-blue-400">
-                        인기 연령대: {result.loanInfo.ageResult.age[0]?.name} ({result.loanInfo.ageResult.age[0]?.loanCnt}회)
-                      </div>
-                    )}
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 flex flex-col md:flex-row gap-6 items-center border border-purple-200 dark:border-purple-800 mb-8">
+                <div className="flex-shrink-0">
+                  <FallbackImage src={result.img} alt="책 표지" className="w-40 h-56 object-cover rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 bg-white" />
+                </div>
+                <div className="flex-1 flex flex-col gap-2 w-full">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">{result.title}</div>
+                  <div className="text-base text-gray-700 dark:text-gray-300 mb-1">저자: <span className="font-semibold">{(result.author || '').replace(/^(저자|지은이)\s*:\s*/g, '').replace(/^(저자|지은이)\s*:\s*/g, '')}</span></div>
+                  <div className="text-base text-gray-700 dark:text-gray-300 mb-1">출판사: <span className="font-semibold">{result.publisher}</span></div>
+                  {result.publication_year && (
+                    <div className="text-base text-gray-500 dark:text-gray-400 mb-1">출판년도: {result.publication_year}</div>
+                  )}
+                  <div className="text-base text-gray-500 dark:text-gray-400 mb-1">ISBN: {result.isbn}</div>
+                  {result.desc && (
+                    <div className="text-base text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line">{result.desc}</div>
+                  )}
+                  {/* 대출 정보 표시: 정보가 있을 때만 */}
+                  {result.loanInfo && (result.loanInfo.Total || (result.loanInfo.ageResult && result.loanInfo.ageResult.age)) && (
+                    <div className="w-full mt-3 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                      <div className="text-sm font-bold text-blue-700 dark:text-blue-300 mb-1">📊 대출 통계</div>
+                      {result.loanInfo.Total && (
+                        <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+                          전체 대출: {result.loanInfo.Total.loanCnt}회 (순위: {result.loanInfo.Total.ranking}위)
+                        </div>
+                      )}
+                      {result.loanInfo.ageResult && result.loanInfo.ageResult.age && (
+                        <div className="text-sm text-blue-600 dark:text-blue-400">
+                          인기 연령대: {result.loanInfo.ageResult.age[0]?.name} ({result.loanInfo.ageResult.age[0]?.loanCnt}회)
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-3 mt-6">
+                    <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition shadow" onClick={() => handleLibrarySearch(result.isbn, result.title)}>대여하러 가기</button>
                   </div>
-                )}
-              </div>
-              <div className="flex gap-2 mt-4 w-full">
-                <button className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition" onClick={() => handleLibrarySearch(result.isbn, result.title)}>대여하러 가기</button>
-                <button className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition" onClick={() => navigate(`/price?query=${encodeURIComponent(result.title)}`)}>가격비교</button>
+                </div>
               </div>
             </div>
           )}
@@ -561,12 +463,12 @@ export default function Info({ searchQuery, setSearchQuery }) {
             <div className="w-full max-w-xs">
               <div className="text-center mb-3">
                 <span className="text-lg font-extrabold text-purple-700 dark:text-purple-300">
-                  🔍 제목 검색 결과 ({allSearchResults.length}건 중 {searchResults.length}건 로드됨)
+                  🔍 제목 검색 결과 총 {allSearchResults.length}건
                 </span>
               </div>
               <div className="space-y-3">
                 {searchResults.map((book, index) => (
-                  <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded-lg shadow p-3">
+                  <div key={index} className={`bg-gray-50 dark:bg-gray-800 rounded-lg shadow p-3${index === searchResults.length - 1 && !hasMore ? ' mb-10' : ''}`}>
                     <div className="flex gap-3">
                       <FallbackImage src={book.img} alt="책 표지" className="w-12 h-16 object-cover rounded shadow" />
                       <div className="flex-1">
@@ -576,7 +478,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
                         {book.publication_year && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판년도: {book.publication_year}</div>
                         )}
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">분류: {book.desc}</div>
+                        {book.desc && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">분류: {book.desc}</div>
+                        )}
                         {book.loan_count && (
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
                             📚 대출: {parseInt(book.loan_count).toLocaleString()}회
@@ -589,12 +493,6 @@ export default function Info({ searchQuery, setSearchQuery }) {
                           >
                             대여
                           </button>
-                          <button 
-                            className="flex-1 py-1 px-2 rounded bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition"
-                            onClick={() => navigate(`/price?query=${encodeURIComponent(book.title)}`)}
-                          >
-                            가격
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -606,11 +504,12 @@ export default function Info({ searchQuery, setSearchQuery }) {
               {hasMore && (
                 <button 
                   onClick={() => setCurrentPage(prev => prev + 1)}
-                  className="w-full mt-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-violet-400"
+                  className="w-full mt-4 mb-4 pb-3 mb-0 py-3 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-violet-400"
                 >
-                  📚 더 많은 도서 로드 (20건 더)
+                  📚 더 많은 도서 검색
                 </button>
               )}
+              {!hasMore && <div className="mb-2" />}
             </div>
           )}
 
@@ -619,7 +518,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
             <div className="w-full max-w-xs">
               <div className="text-center mb-3">
                 <span className="text-lg font-extrabold text-orange-700 dark:text-orange-300">
-                  🔍 키워드 검색 결과 ({allSearchResults.length}건 중 {searchResults.length}건 로드됨)
+                  🔍 키워드 검색 결과 : 총 {allSearchResults.length}건
                 </span>
                 <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                   제목 검색 결과가 없어서 키워드로 검색한 결과입니다
@@ -630,7 +529,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
               </div>
               <div className="space-y-3">
                 {searchResults.map((book, index) => (
-                  <div key={index} className="bg-orange-50 dark:bg-orange-900/20 rounded-lg shadow p-3 border border-orange-200 dark:border-orange-700">
+                  <div key={index} className={`bg-orange-50 dark:bg-orange-900/20 rounded-lg shadow p-3 border border-orange-200 dark:border-orange-700${index === searchResults.length - 1 && !hasMore ? ' mb-10' : ''}`}>
                     <div className="flex gap-3">
                       <FallbackImage src={book.img} alt="책 표지" className="w-12 h-16 object-cover rounded shadow" />
                       <div className="flex-1">
@@ -640,7 +539,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
                         {book.publication_year && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">출판년도: {book.publication_year}</div>
                         )}
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">분류: {book.desc}</div>
+                        {book.desc && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">분류: {book.desc}</div>
+                        )}
                         {book.loan_count && (
                           <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-1">
                             📚 대출: {parseInt(book.loan_count).toLocaleString()}회
@@ -653,12 +554,6 @@ export default function Info({ searchQuery, setSearchQuery }) {
                           >
                             대여
                           </button>
-                          <button 
-                            className="flex-1 py-1 px-2 rounded bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition"
-                            onClick={() => navigate(`/price?query=${encodeURIComponent(book.title)}`)}
-                          >
-                            가격
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -670,11 +565,12 @@ export default function Info({ searchQuery, setSearchQuery }) {
               {hasMore && (
                 <button 
                   onClick={() => setCurrentPage(prev => prev + 1)}
-                  className="w-full mt-4 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-orange-400"
+                  className="w-full mt-4 pb-16 mb-0 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 border border-orange-400"
                 >
-                  📚 더 많은 도서 로드 (20건 더)
+                  📚 더 많은 도서 검색
                 </button>
               )}
+              {!hasMore && <div className="mb-2" />}
             </div>
           )}
 
@@ -684,7 +580,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
               <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4 text-center">
                 <div className="text-lg font-extrabold text-red-600 dark:text-red-400 mb-2">🔍 검색 결과 없음</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  "{search}"에 대한 검색 결과가 없습니다.
+                  "{committedSearch}"에 대한 검색 결과가 없습니다.
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-500">
                   {searchType === "isbn" ? "올바른 ISBN을 입력했는지 확인해주세요." : 
@@ -701,7 +597,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
                 <div className="flex flex-col items-center w-full">
                   <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{dummyBooks[0].title}</div>
                   <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {dummyBooks[0].author}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
+                  {dummyBooks[0].desc && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
+                  )}
                   <div className="flex gap-2 mt-4 w-full">
                     <button 
                       className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
@@ -709,14 +607,9 @@ export default function Info({ searchQuery, setSearchQuery }) {
                     >
                       대여하러 가기
                     </button>
-                    <button 
-                      className="flex-1 py-2 rounded bg-teal-500 text-white font-bold hover:bg-teal-600 transition"
-                      onClick={() => navigate(`/price?query=${encodeURIComponent(dummyBooks[0].title)}`)}
-                    >
-                      가격비교
-                    </button>
                   </div>
                 </div>
+                <div className="mb-2" />
               </div>
             </>
           )}

@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { apiService } from "../services/api";
 import { healthCheck } from "../services/api";
 import FallbackImage from "./FallbackImage";
+import config from "../config/config";
+import UploadModeToggle from "./UploadModeToggle";
 
-// FastAPI 서버 URL
-const FASTAPI_BASE_URL = 'http://192.168.45.120:8000';
+// FastAPI 서버 URL - config에서 가져오기
+const FASTAPI_BASE_URL = config.FASTAPI_BASE_URL;
 
 // 이미지 리사이즈 유틸리티
 const imageResizeUtils = {
@@ -182,6 +184,16 @@ const imageResizeUtils = {
     }
   }
 };
+
+// URL 유효성 검사 함수
+function isValidImageUrl(url) {
+  try {
+    new URL(url);
+  } catch {
+    return false;
+  }
+  return /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(url);
+}
 
 export default function Ocr({ loading, setLoading, setSearchQuery }) {
   const [mode, setMode] = useState("image"); // 'image' or 'url'
@@ -429,6 +441,11 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (file.size > 10 * 1024 * 1024) { // 10MB 제한
+        setStatus("error");
+        setErrorMessage("최대 파일 크기는 10MB입니다.");
+        return;
+      }
       handleImageUpload(file);
     }
   };
@@ -454,28 +471,23 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
   return (
     <div className="relative flex flex-col items-center w-full min-h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
       {/* 업로드 방식 토글 */}
-      <div className={`flex gap-2 mb-4 w-full max-w-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 p-1 transition-colors duration-200 ${loading ? "pointer-events-none opacity-60" : ""}` }>
-        <button
-          className={`flex-1 py-2 rounded-md font-bold transition-colors duration-200 ${mode === "image" ? "bg-blue-600 text-white shadow" : "bg-transparent text-gray-700 dark:text-gray-200"}`}
-          onClick={() => setMode("image")}
-        >
-          이미지 업로드
-        </button>
-        <button
-          className={`flex-1 py-2 rounded-md font-bold transition-colors duration-200 ${mode === "url" ? "bg-blue-600 text-white shadow" : "bg-transparent text-gray-700 dark:text-gray-200"}`}
-          onClick={() => setMode("url")}
-        >
-          URL 업로드
-        </button>
-      </div>
+      <UploadModeToggle
+        options={[
+          { label: "이미지 업로드", value: "image" },
+          { label: "URL 업로드", value: "url" }
+        ]}
+        mode={mode}
+        setMode={setMode}
+        loading={loading}
+      />
 
       {/* 선택된 UI만 표시 */}
       {mode === "image" ? (
         <div className={`relative w-full max-w-xs border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 flex flex-col items-center mb-6 bg-white dark:bg-gray-800 ${loading ? "pointer-events-none opacity-60" : ""}` }>
           <div className="text-4xl text-gray-400 mb-2">⬆️</div>
           <div className="text-gray-500 dark:text-gray-300 text-center mb-2">
-            <span className="font-semibold">Click to upload</span> or drag and drop<br/>
-            <span className="text-xs">Max. File Size: 30MB</span>
+            <span className="font-semibold">이미지 파일을 선택해 주세요</span><br/>
+            <span className="text-xs">최대 파일 크기: 10MB</span>
           </div>
           {/* 숨겨진 파일 input */}
           <input
@@ -490,7 +502,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             onClick={handleBrowseClick}
             className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
           >
-            Browse File
+            파일 선택
           </button>
           {/* 업로드 결과 메시지 */}
           {!loading && status === "success" && (
@@ -514,14 +526,40 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {/* 클립보드 붙여넣기 버튼 */}
+          <button
+            type="button"
+            className="w-full mt-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-gray-600 text-xs mb-1"
+            onClick={async () => {
+              if (navigator.clipboard && navigator.clipboard.readText) {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  setSearch(text);
+                } catch (err) {
+                  alert("클립보드에서 텍스트를 읽을 수 없습니다. 모바일에서는 직접 붙여넣기 해주세요.");
+                }
+              } else {
+                alert("이 브라우저에서는 클립보드 붙여넣기 기능이 지원되지 않습니다. 직접 붙여넣기 해주세요.");
+              }
+            }}
+            disabled={loading}
+          >
+            클립보드에서 붙여넣기
+          </button>
           {/* URL 업로드 버튼 */}
           <button 
             onClick={handleUrlUpload}
-            disabled={loading || !search.trim()}
+            disabled={loading || !search.trim() || !isValidImageUrl(search)}
             className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? '처리 중...' : 'URL 처리'}
           </button>
+          {/* URL 유효성 에러 메시지 */}
+          {!loading && search && !isValidImageUrl(search) && (
+            <div className="mt-2 text-red-600 dark:text-red-400 text-xs flex items-center gap-1">
+              <span>❌</span> 올바른 이미지 URL을 입력해 주세요 (jpg, png, gif 등)
+            </div>
+          )}
           {/* 업로드 결과 메시지 */}
           {!loading && status === "success" && (
             <div className="mt-4 text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -549,7 +587,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
               ×
             </button>
             <div className="text-2xl font-extrabold mb-4 text-violet-700 dark:text-violet-300 flex items-center justify-center gap-2">
-              <MdAutoAwesome className="text-3xl align-middle" /> OCR 결과
+              <MdAutoAwesome className="text-3xl align-middle" /> OCR 도서제목 검출 결과
             </div>
             <div className="flex justify-center items-end gap-8 mb-6">
               {/* 오리지널 이미지 */}
@@ -577,7 +615,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
                 ) : (
                   <FallbackImage src="/dummy-image.png" alt="오리지널 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110" />
                 )}
-                <span className="text-xs mt-2 text-gray-500">오리지널</span>
+                <span className="text-xs mt-2 text-gray-500">오리지널 이미지</span>
               </div>
               {/* OCR 박싱 이미지 */}
               <div className="flex flex-col items-center group">
@@ -594,7 +632,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
                 ) : (
                   <FallbackImage src="/dummy-image.png" alt="OCR 결과 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110" />
                 )}
-                <span className="text-xs mt-2 text-blue-500 font-bold">OCR 결과</span>
+                <span className="text-xs mt-2 text-blue-500 font-bold">OCR 도서제목 검출 결과</span>
               </div>
             </div>
             <div className="mb-6 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
@@ -617,8 +655,8 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             )}
 
             <div className="flex justify-center gap-6 mt-2">
-              <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold text-base shadow hover:from-green-500 hover:to-blue-600 transition-all duration-200 scale-100 hover:scale-105" onClick={handleOk}>ok</button>
-              <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 font-bold text-base shadow hover:from-gray-400 hover:to-gray-500 transition-all duration-200 scale-100 hover:scale-105" onClick={resetStatus}>no</button>
+              <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold text-base shadow hover:from-green-500 hover:to-blue-600 transition-all duration-200 scale-100 hover:scale-105" onClick={handleOk}>정답</button>
+              <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 font-bold text-base shadow hover:from-gray-400 hover:to-gray-500 transition-all duration-200 scale-100 hover:scale-105" onClick={resetStatus}>오답</button>
             </div>
           </div>
         </div>

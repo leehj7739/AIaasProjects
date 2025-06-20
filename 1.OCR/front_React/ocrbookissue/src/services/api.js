@@ -1,12 +1,13 @@
 import axios from 'axios';
 import xml2js from 'xml2js';
+import config from '../config/config';
 
 // 환경 변수에서 API 설정 가져오기
 const API_KEY = process.env.REACT_APP_API_KEY;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://data4library.kr';
 
-// FastAPI 서버 URL
-const FASTAPI_BASE_URL = 'http://192.168.45.120:8000';
+// FastAPI 서버 URL - config에서 가져오기
+const FASTAPI_BASE_URL = config.FASTAPI_BASE_URL;
 
 // 캐시 설정
 const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
