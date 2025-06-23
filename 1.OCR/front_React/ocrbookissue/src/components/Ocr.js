@@ -6,6 +6,7 @@ import { healthCheck } from "../services/api";
 import FallbackImage from "./FallbackImage";
 import config from "../config/config";
 import UploadModeToggle from "./UploadModeToggle";
+import { v4 as uuidv4 } from 'uuid';
 
 // FastAPI 서버 URL - config에서 가져오기
 const FASTAPI_BASE_URL = config.FASTAPI_BASE_URL;
@@ -195,20 +196,34 @@ function isValidImageUrl(url) {
   return /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(url);
 }
 
-export default function Ocr({ loading, setLoading, setSearchQuery }) {
+// OCR 결과 저장 함수 (localStorage)
+function saveOcrHistory(item) {
+  // 필수값 유효성 검사
+  if (!item || !item.id || !item.ocrResultImageUrl || !item.extractedText) {
+    console.warn('[OCR 히스토리] 저장 실패: 필수값 누락', item);
+    return;
+  }
+  const history = JSON.parse(localStorage.getItem('ocrHistory') || '[]');
+  history.unshift(item);
+  localStorage.setItem('ocrHistory', JSON.stringify(history.slice(0, 10)));
+  console.log('[OCR 히스토리] 저장 성공:', item);
+}
+
+export default function Ocr(props) {
+  const { loading, setLoading, setSearchQuery, viewMode, ocrData } = props;
   const [mode, setMode] = useState("image"); // 'image' or 'url'
   const [status, setStatus] = useState(null); // null | 'success' | 'error'
-  const [errorMessage, setErrorMessage] = useState(""); // 에러 메시지
+  const [search, setSearch] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [ocrDataState, setOcrData] = useState(null);
+  const [ocrTitle, setOcrTitle] = useState("");
+  const [ocrResultImage, setOcrResultImage] = useState(null);
+  const [originalImage, setOriginalImage] = useState(null);
+  const [resizeInfo, setResizeInfo] = useState(null);
+  const [showImageModal, setShowImageModal] = useState(false); // 이미지 확대 모달 (최상단에서 한 번만 선언)
+  const [modalImage, setModalImage] = useState(null); // 확대 모달 이미지
   const fileInputRef = useRef();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [ocrTitle, setOcrTitle] = useState("위버멘쉬"); // 실제 OCR 결과로 대체 필요
-  
-  // 이미지 관련 상태 추가
-  const [originalImage, setOriginalImage] = useState(null); // 오리지널 이미지 (File 객체 또는 URL)
-  const [ocrResultImage, setOcrResultImage] = useState(null); // 서버에서 받은 OCR 결과 이미지
-  const [ocrData, setOcrData] = useState(null); // OCR 결과 데이터
-  const [resizeInfo, setResizeInfo] = useState(null); // 리사이즈 정보
 
   // FastAPI 서버 헬스체크 함수
   const checkServerHealth = async () => {
@@ -282,32 +297,17 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
       console.log('🚀 이미지 업로드 및 OCR+GPT 처리 시작...');
       const response = await apiService.uploadImage(processedFile);
       
-      // FastAPI CombinedResponse 구조에 맞게 데이터 처리
-      const { ocr_result, gpt_result, total_processing_time_ms } = response.data;
+      console.log('✅ OCR 처리 완료:', response.data);
+      console.log('📊 OCR 결과 데이터:', response.data.ocr_result);
+      console.log('🤖 GPT 결과 데이터:', response.data.gpt_result);
       
-      console.log('📊 OCR 결과:', ocr_result);
-      console.log('🤖 GPT 결과:', gpt_result);
-      console.log('⏱️ 총 처리 시간:', total_processing_time_ms, 'ms');
+      const { ocr_result, gpt_result } = response.data;
       
       // OCR 결과 데이터 저장
       setOcrData(ocr_result);
       
       // OCR 결과 이미지 URL 설정 (서버에서 반환된 경우)
-      if (ocr_result?.result_image_url) {
-        // 상대 경로인 경우 FastAPI 서버 URL과 결합
-        const imageUrl = ocr_result.result_image_url.startsWith('http') 
-          ? ocr_result.result_image_url 
-          : `${FASTAPI_BASE_URL}${ocr_result.result_image_url}`;
-        setOcrResultImage(imageUrl);
-      } else if (ocr_result?.annotated_image_url) {
-        const imageUrl = ocr_result.annotated_image_url.startsWith('http') 
-          ? ocr_result.annotated_image_url 
-          : `${FASTAPI_BASE_URL}${ocr_result.annotated_image_url}`;
-        setOcrResultImage(imageUrl);
-      } else {
-        // 서버에서 이미지 URL을 반환하지 않는 경우, 오리지널 이미지를 OCR 결과로 사용
-        setOcrResultImage(URL.createObjectURL(file));
-      }
+      setOcrResultImageWithFallback(ocr_result, search);
       
       // GPT 결과에서 추출된 책 제목 사용
       const extractedTitle = gpt_result?.gpt_response || 
@@ -323,15 +323,31 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
         title: extractedTitle,
         ocrText: ocr_result?.extracted_text,
         confidence: ocr_result?.confidence,
-        processingTime: total_processing_time_ms,
+        processingTime: response.data.total_processing_time_ms,
         originalImage: file.name,
         processedImage: processedFile.name,
         originalSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
         processedSize: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-        ocrResultImage: ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 이미지 사용',
+        ocrResultImage: ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/static/${ocr_result.result_image_path}` : ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 이미지 사용',
         gptResponse: gpt_result?.gpt_response,
         tokensUsed: gpt_result?.tokens_used,
         gptModel: gpt_result?.gpt_model
+      });
+      
+      // OCR 결과 저장
+      const boundingBoxImageUrl = ocr_result?.result_image_path
+        ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`
+        : null;
+      let resizedImageUrl = null;
+      if (processedFile instanceof File) {
+        resizedImageUrl = URL.createObjectURL(processedFile);
+      }
+      saveOcrHistory({
+        id: uuidv4(),
+        ocrResultImageUrl: boundingBoxImageUrl,
+        originalImageUrl: resizedImageUrl, // Blob URL
+        extractedText: gpt_result?.gpt_response || ocr_result?.extracted_text,
+        createdAt: new Date().toISOString()
       });
       
     } catch (error) {
@@ -371,32 +387,17 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
       console.log('🚀 URL 처리 및 OCR+GPT 처리 시작...');
       const response = await apiService.uploadImage(processedFile);
       
-      // FastAPI CombinedResponse 구조에 맞게 데이터 처리
-      const { ocr_result, gpt_result, total_processing_time_ms } = response.data;
+      console.log('✅ OCR 처리 완료:', response.data);
+      console.log('📊 OCR 결과 데이터:', response.data.ocr_result);
+      console.log('🤖 GPT 결과 데이터:', response.data.gpt_result);
       
-      console.log('📊 OCR 결과:', ocr_result);
-      console.log('🤖 GPT 결과:', gpt_result);
-      console.log('⏱️ 총 처리 시간:', total_processing_time_ms, 'ms');
+      const { ocr_result, gpt_result } = response.data;
       
       // OCR 결과 데이터 저장
       setOcrData(ocr_result);
       
       // OCR 결과 이미지 URL 설정 (서버에서 반환된 경우)
-      if (ocr_result?.result_image_url) {
-        // 상대 경로인 경우 FastAPI 서버 URL과 결합
-        const imageUrl = ocr_result.result_image_url.startsWith('http') 
-          ? ocr_result.result_image_url 
-          : `${FASTAPI_BASE_URL}${ocr_result.result_image_url}`;
-        setOcrResultImage(imageUrl);
-      } else if (ocr_result?.annotated_image_url) {
-        const imageUrl = ocr_result.annotated_image_url.startsWith('http') 
-          ? ocr_result.annotated_image_url 
-          : `${FASTAPI_BASE_URL}${ocr_result.annotated_image_url}`;
-        setOcrResultImage(imageUrl);
-      } else {
-        // 서버에서 이미지 URL을 반환하지 않는 경우, 오리지널 URL을 OCR 결과로 사용
-        setOcrResultImage(search);
-      }
+      setOcrResultImageWithFallback(ocr_result, search);
       
       // GPT 결과에서 추출된 책 제목 사용
       const extractedTitle = gpt_result?.gpt_response || 
@@ -412,15 +413,31 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
         title: extractedTitle,
         ocrText: ocr_result?.extracted_text,
         confidence: ocr_result?.confidence,
-        processingTime: total_processing_time_ms,
+        processingTime: response.data.total_processing_time_ms,
         originalImage: search,
         processedImage: processedFile.name,
         originalSize: urlResizeInfo ? `${(originalFile.size / 1024 / 1024).toFixed(2)}MB` : `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
         processedSize: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-        ocrResultImage: ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 URL 사용',
+        ocrResultImage: ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/static/${ocr_result.result_image_path}` : ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 URL 사용',
         gptResponse: gpt_result?.gpt_response,
         tokensUsed: gpt_result?.tokens_used,
         gptModel: gpt_result?.gpt_model
+      });
+      
+      // OCR 결과 저장
+      const boundingBoxImageUrl = ocr_result?.result_image_path
+        ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`
+        : null;
+      let resizedImageUrl = null;
+      if (processedFile instanceof File) {
+        resizedImageUrl = URL.createObjectURL(processedFile);
+      }
+      saveOcrHistory({
+        id: uuidv4(),
+        ocrResultImageUrl: boundingBoxImageUrl,
+        originalImageUrl: resizedImageUrl, // Blob URL
+        extractedText: gpt_result?.gpt_response || ocr_result?.extracted_text,
+        createdAt: new Date().toISOString()
       });
       
     } catch (error) {
@@ -461,12 +478,106 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
   const resetStatus = () => {
     setStatus(null);
     setErrorMessage("");
-    // 이미지 상태 초기화
-    setOriginalImage(null);
+    setOcrTitle("");
     setOcrResultImage(null);
+    setOriginalImage(null);
     setOcrData(null);
     setResizeInfo(null);
+    setShowImageModal(false);
   };
+
+  // 이미지 로드 실패 시 더미 이미지로 대체
+  const handleImageError = (e) => {
+    console.warn('❌ OCR 박싱 이미지 로드 실패, 더미 이미지 사용:', e.target.src);
+    e.target.src = "/dummy-image.png";
+  };
+
+  // OCR 결과 이미지 URL 설정 함수
+  const setOcrResultImageWithFallback = (ocr_result, fallbackImage) => {
+    if (ocr_result?.result_image_path) {
+      // FastAPI 서버에서 제공하는 이미지 URL 형식
+      const boundingBoxImageUrl = `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`;
+      console.log('🔍 OCR 박싱 이미지 URL:', boundingBoxImageUrl);
+      setOcrResultImage(boundingBoxImageUrl);
+    } else {
+      console.log('⚠️ 서버에서 박싱 이미지 URL을 반환하지 않음, 오리지널 이미지 사용');
+      setOcrResultImage(fallbackImage);
+    }
+  };
+
+  // 뷰 모드: OCR 결과만 표시
+  if (viewMode && ocrData) {
+    const ocrImgUrl = ocrData.ocrResultImageUrl || ocrData.originalImageUrl;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+        <div className="bg-gradient-to-br from-white via-violet-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative border-2 border-violet-200 dark:border-gray-700 animate-fadein-up">
+          {/* 좌상단 닫기 버튼 */}
+          <button
+            className="absolute top-4 left-4 text-gray-400 hover:text-violet-600 text-2xl transition-colors"
+            onClick={() => window.history.back()}
+            aria-label="닫기"
+          >
+            ×
+          </button>
+          <div className="text-2xl font-extrabold mb-4 text-violet-700 dark:text-violet-300 flex items-center justify-center gap-2">
+            <span className="text-3xl align-middle">✨</span> OCR 도서제목 검출 결과
+          </div>
+          <div className="flex justify-center items-end gap-8 mb-6">
+            {/* 오리지널 이미지 */}
+            <div className="flex flex-col items-center group">
+              <img src={ocrData.originalImageUrl} alt="오리지널 이미지" className="w-32 h-40 object-contain rounded-xl shadow-lg" />
+              <span className="text-xs mt-2 text-gray-500 font-medium">오리지널 이미지</span>
+            </div>
+            {/* OCR 박싱 이미지 */}
+            <div className="flex flex-col items-center group">
+              <img
+                src={ocrImgUrl}
+                alt="OCR 결과 이미지"
+                className="w-32 h-40 object-contain rounded-xl shadow-lg border-4 border-blue-400 cursor-pointer"
+                onClick={() => setShowImageModal(true)}
+              />
+              <span className="text-xs mt-2 text-blue-500 font-medium">OCR 도서제목 검출 결과</span>
+            </div>
+          </div>
+          <div className="mb-6 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
+            <span className="font-bold text-blue-700 dark:text-blue-300">{ocrData.extractedText}</span>
+          </div>
+          <div className="text-xs text-gray-400 mb-2">{ocrData.createdAt && new Date(ocrData.createdAt).toLocaleString()}</div>
+          {/* 확대 모달 */}
+          {showImageModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 animate-fadein">
+              <div className="bg-gradient-to-br from-white via-violet-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl p-8 max-w-2xl w-full text-center relative border-2 border-violet-200 dark:border-gray-700 animate-fadein-up">
+                <button
+                  className="absolute top-4 left-4 text-gray-400 hover:text-violet-600 text-2xl transition-colors"
+                  onClick={() => setShowImageModal(false)}
+                  aria-label="닫기"
+                >
+                  ×
+                </button>
+                <div className="text-2xl font-extrabold mb-4 text-violet-700 dark:text-violet-300 flex items-center justify-center gap-2">
+                  <span className="text-3xl align-middle">✨</span> OCR 도서제목 검출 결과
+                </div>
+                <div className="flex justify-center items-end gap-8 mb-6">
+                  <div className="flex flex-col items-center group">
+                    <img
+                      src={ocrImgUrl}
+                      alt="OCR 결과 이미지 (확대)"
+                      className="max-w-[320px] max-h-[420px] object-contain rounded-xl shadow-lg border-4 border-blue-400"
+                    />
+                    <span className="text-xs mt-2 text-blue-500 font-medium">OCR 도서제목 검출 결과 (확대)</span>
+                  </div>
+                </div>
+                <div className="mb-2 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
+                  <span className="font-bold text-blue-700 dark:text-blue-300">{ocrData.extractedText}</span>
+                </div>
+                <div className="text-xs text-gray-400 mb-2">{ocrData.createdAt && new Date(ocrData.createdAt).toLocaleString()}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col items-center w-full min-h-full p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
@@ -576,7 +687,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
 
       {/* 업로드 성공시 전체 오버레이 */}
       {status === "success" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 animate-fadein">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-70 animate-fadein">
           <div className="bg-gradient-to-br from-white via-violet-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative border-2 border-violet-200 dark:border-gray-700 animate-fadein-up">
             {/* 좌상단 닫기 버튼 */}
             <button
@@ -598,7 +709,7 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
                     <img 
                       src={originalImage} 
                       alt="오리지널 이미지" 
-                      className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
+                      className="w-32 h-40 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
                       onError={(e) => {
                         e.target.src = "/dummy-image.png";
                         console.warn("오리지널 이미지 로드 실패, 더미 이미지 사용");
@@ -609,13 +720,13 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
                     <img 
                       src={URL.createObjectURL(originalImage)} 
                       alt="오리지널 이미지" 
-                      className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
+                      className="w-32 h-40 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
                     />
                   )
                 ) : (
-                  <FallbackImage src="/dummy-image.png" alt="오리지널 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg transition-transform duration-200 hover:scale-110" />
+                  <FallbackImage src="/dummy-image.png" alt="오리지널 이미지" className="w-32 h-40 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110" />
                 )}
-                <span className="text-xs mt-2 text-gray-500">오리지널 이미지</span>
+                <span className="text-xs mt-2 text-gray-500 font-medium">오리지널 이미지</span>
               </div>
               {/* OCR 박싱 이미지 */}
               <div className="flex flex-col items-center group">
@@ -623,16 +734,20 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
                   <img 
                     src={ocrResultImage} 
                     alt="OCR 결과 이미지" 
-                    className="w-24 h-32 object-cover rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110"
-                    onError={(e) => {
-                      e.target.src = "/dummy-image.png";
-                      console.warn("OCR 결과 이미지 로드 실패, 더미 이미지 사용");
+                    className="w-32 h-40 object-contain rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110 cursor-pointer"
+                    onClick={() => {
+                      console.log("[LOG] 박싱 이미지 클릭됨, showImageModal=true");
+                      setShowImageModal(true);
                     }}
+                    onError={(e) => handleImageError(e)}
                   />
                 ) : (
-                  <FallbackImage src="/dummy-image.png" alt="OCR 결과 이미지" className="w-24 h-32 object-cover rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110" />
+                  <FallbackImage src="/dummy-image.png" alt="OCR 결과 이미지" className="w-32 h-40 object-contain rounded-xl shadow-lg border-4 border-blue-400 transition-transform duration-200 hover:scale-110 cursor-pointer" onClick={() => {
+                    console.log("[LOG] 박싱 이미지(더미) 클릭됨, showImageModal=true");
+                    setShowImageModal(true);
+                  }} />
                 )}
-                <span className="text-xs mt-2 text-blue-500 font-bold">OCR 도서제목 검출 결과</span>
+                <span className="text-xs mt-2 text-blue-500 font-medium">OCR 도서제목 검출 결과</span>
               </div>
             </div>
             <div className="mb-6 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
@@ -657,6 +772,36 @@ export default function Ocr({ loading, setLoading, setSearchQuery }) {
             <div className="flex justify-center gap-6 mt-2">
               <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold text-base shadow hover:from-green-500 hover:to-blue-600 transition-all duration-200 scale-100 hover:scale-105" onClick={handleOk}>정답</button>
               <button className="px-8 py-2 rounded-lg bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800 font-bold text-base shadow hover:from-gray-400 hover:to-gray-500 transition-all duration-200 scale-100 hover:scale-105" onClick={resetStatus}>오답</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 확대 모달: status와 무관하게 항상 렌더링 */}
+      {showImageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 animate-fadein">
+          <div className="bg-gradient-to-br from-white via-violet-50 to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl p-8 max-w-2xl w-full text-center relative border-2 border-violet-200 dark:border-gray-700 animate-fadein-up">
+            <button
+              className="absolute top-4 left-4 text-gray-400 hover:text-violet-600 text-2xl transition-colors"
+              onClick={() => setShowImageModal(false)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <div className="text-2xl font-extrabold mb-4 text-violet-700 dark:text-violet-300 flex items-center justify-center gap-2">
+              <span className="text-3xl align-middle">✨</span> OCR 도서제목 검출 결과
+            </div>
+            <div className="flex justify-center items-end gap-8 mb-6">
+              <div className="flex flex-col items-center group">
+                <img
+                  src={ocrResultImage}
+                  alt="OCR 결과 이미지 (확대)"
+                  className="max-w-[320px] max-h-[420px] object-contain rounded-xl shadow-lg border-4 border-blue-400"
+                />
+                <span className="text-xs mt-2 text-blue-500 font-medium">OCR 도서제목 검출 결과 (확대)</span>
+              </div>
+            </div>
+            <div className="mb-2 text-lg text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2">
+              <span className="font-bold text-blue-700 dark:text-blue-300">{ocrTitle}</span>
             </div>
           </div>
         </div>

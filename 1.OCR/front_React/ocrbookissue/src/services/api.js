@@ -641,17 +641,12 @@ export const apiService = {
   // 키워드 기반 도서 검색 API
   searchBooksByKeyword: async (keyword, pageNo = 1, pageSize = 10) => {
     const apiKey = process.env.REACT_APP_LIBRARY_API_KEY || 'test_api_key_123';
-    
-    // API 키가 테스트 키인지 확인
     const isTestKey = apiKey === 'test_api_key_123';
-    if (isTestKey) {
-      console.warn("⚠️ 테스트 API 키 사용 중 - 실제 API 호출이 실패할 수 있습니다.");
-    }
     
-    // 키워드 전처리: 앞의 두 단어만 추출
+    // 키워드 전처리: 공백으로 구분하여 앞의 두 단어만 추출하고 세미콜론으로 조인
     const processKeyword = (keyword) => {
       const words = keyword.trim().split(/\s+/).filter(word => word.length > 0);
-      return words.slice(0, 2).join(' ');
+      return words.slice(0, 2).join(';');
     };
     
     const processedKeyword = processKeyword(keyword);
@@ -731,13 +726,6 @@ export const apiService = {
           };
         } catch (proxyError) {
           console.error('프록시 키워드 검색 호출도 실패:', proxyError);
-          console.error('프록시 에러 상세 정보:', {
-            message: proxyError.message,
-            code: proxyError.code,
-            status: proxyError.response?.status,
-            statusText: proxyError.response?.statusText,
-            data: proxyError.response?.data
-          });
         }
       }
       // 에러 시 빈 결과 반환
@@ -758,13 +746,21 @@ export const apiService = {
   searchBooksByTitle: async (title, pageNo = 1, pageSize = 10) => {
     const apiKey = process.env.REACT_APP_LIBRARY_API_KEY || 'test_api_key_123';
     
+    // 제목 전처리: 공백을 세미콜론으로 변경
+    const processTitle = (title) => {
+      return title.trim().replace(/\s+/g, ';');
+    };
+    
+    const processedTitle = processTitle(title);
+    
     console.log("🔍 제목 도서 검색 API 호출:", title);
+    console.log("📝 전처리된 제목:", processedTitle);
     
     try {
       const response = await axios.get(`http://data4library.kr/api/srchBooks`, {
         params: {
           authKey: apiKey,
-          title: title,
+          title: processedTitle,
           pageNo,
           pageSize,
           searchTarget: 'bookname'
@@ -787,11 +783,56 @@ export const apiService = {
           ? result.response.docs.doc 
           : [result.response.docs.doc];
         
+        console.log("🔍 필터링 전 도서 수:", books.length);
+        console.log("🔍 검색 제목:", title);
+        console.log("🔍 전처리된 제목:", processedTitle);
+        
+        // 제목 필터링 (원본 제목과 전처리된 제목 모두로 매칭)
         const filteredBooks = books.filter(book => {
           const bookTitle = book.bookname?.toLowerCase() || '';
           const searchTitle = title.toLowerCase();
-          return bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle);
+          const processedSearchTitle = processedTitle.toLowerCase();
+          
+          console.log(`🔍 ${pageNo}페이지 매칭 시도:`);
+          console.log(`  - 도서 제목: "${bookTitle}"`);
+          console.log(`  - 검색 제목: "${searchTitle}"`);
+          console.log(`  - 전처리 제목: "${processedSearchTitle}"`);
+          
+          // 특수문자 제거하여 비교 (주요 조사 보존)
+          const cleanBookTitle = bookTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+          const cleanSearchTitle = searchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+          const cleanProcessedTitle = processedSearchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+          
+          console.log(`  - 정리된 도서 제목: "${cleanBookTitle}"`);
+          console.log(`  - 정리된 검색 제목: "${cleanSearchTitle}"`);
+          console.log(`  - 정리된 전처리 제목: "${cleanProcessedTitle}"`);
+          
+          // 검색어를 단어로 분리하여 각 단어가 포함되는지 확인
+          const searchWords = cleanSearchTitle.split(/\s+/).filter(word => word.length > 0);
+          const processedWords = cleanProcessedTitle.split(/[;\s]+/).filter(word => word.length > 0);
+          
+          console.log(`  - 검색 단어들: [${searchWords.join(', ')}]`);
+          console.log(`  - 전처리 단어들: [${processedWords.join(', ')}]`);
+          
+          // 원본 검색어 매칭: 모든 검색 단어가 도서 제목에 포함되는지 확인
+          const originalMatch = searchWords.every(word => cleanBookTitle.includes(word));
+          
+          // 전처리 검색어 매칭: 모든 전처리 단어가 도서 제목에 포함되는지 확인
+          const processedMatch = processedWords.every(word => cleanBookTitle.includes(word));
+          
+          // 기존 방식도 유지 (완전 포함 관계)
+          const fullOriginalMatch = cleanBookTitle.includes(cleanSearchTitle) || cleanSearchTitle.includes(cleanBookTitle);
+          const fullProcessedMatch = cleanBookTitle.includes(cleanProcessedTitle) || cleanProcessedTitle.includes(cleanBookTitle);
+          
+          const isMatch = originalMatch || processedMatch || fullOriginalMatch || fullProcessedMatch;
+          console.log(`  - 단어별 원본 매칭: ${originalMatch}, 단어별 전처리 매칭: ${processedMatch}`);
+          console.log(`  - 완전 포함 원본 매칭: ${fullOriginalMatch}, 완전 포함 전처리 매칭: ${fullProcessedMatch}`);
+          console.log(`  - 최종 매칭: ${isMatch}`);
+          
+          return isMatch;
         });
+        
+        console.log("🔍 필터링 후 도서 수:", filteredBooks.length);
         
         result.response.docs.doc = filteredBooks;
         result.response.numFound = filteredBooks.length.toString();
@@ -811,7 +852,7 @@ export const apiService = {
       if (error.code === 'ERR_NETWORK' || error.message.includes('CORS')) {
         console.log("🔄 CORS 에러 - 프록시 사용");
         const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-        const targetUrl = `http://data4library.kr/api/srchBooks?authKey=${apiKey}&title=${encodeURIComponent(title)}&pageNo=${pageNo}&pageSize=${pageSize}&searchTarget=bookname`;
+        const targetUrl = `http://data4library.kr/api/srchBooks?authKey=${apiKey}&title=${encodeURIComponent(processedTitle)}&pageNo=${pageNo}&pageSize=${pageSize}&searchTarget=bookname`;
         
         try {
           const proxyResponse = await axios.get(proxyUrl + targetUrl, {
@@ -834,11 +875,56 @@ export const apiService = {
               ? proxyResult.response.docs.doc 
               : [proxyResult.response.docs.doc];
             
+            console.log("🔍 필터링 전 도서 수:", proxyBooks.length);
+            console.log("🔍 검색 제목:", title);
+            console.log("🔍 전처리된 제목:", processedTitle);
+            
+            // 제목 필터링 (원본 제목과 전처리된 제목 모두로 매칭)
             const filteredProxyBooks = proxyBooks.filter(book => {
               const bookTitle = book.bookname?.toLowerCase() || '';
               const searchTitle = title.toLowerCase();
-              return bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle);
+              const processedSearchTitle = processedTitle.toLowerCase();
+              
+              console.log(`🔍 ${pageNo}페이지 매칭 시도:`);
+              console.log(`  - 도서 제목: "${bookTitle}"`);
+              console.log(`  - 검색 제목: "${searchTitle}"`);
+              console.log(`  - 전처리 제목: "${processedSearchTitle}"`);
+              
+              // 특수문자 제거하여 비교 (주요 조사 보존)
+              const cleanBookTitle = bookTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+              const cleanSearchTitle = searchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+              const cleanProcessedTitle = processedSearchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+              
+              console.log(`  - 정리된 도서 제목: "${cleanBookTitle}"`);
+              console.log(`  - 정리된 검색 제목: "${cleanSearchTitle}"`);
+              console.log(`  - 정리된 전처리 제목: "${cleanProcessedTitle}"`);
+              
+              // 검색어를 단어로 분리하여 각 단어가 포함되는지 확인
+              const searchWords = cleanSearchTitle.split(/\s+/).filter(word => word.length > 0);
+              const processedWords = cleanProcessedTitle.split(/[;\s]+/).filter(word => word.length > 0);
+              
+              console.log(`  - 검색 단어들: [${searchWords.join(', ')}]`);
+              console.log(`  - 전처리 단어들: [${processedWords.join(', ')}]`);
+              
+              // 원본 검색어 매칭: 모든 검색 단어가 도서 제목에 포함되는지 확인
+              const originalMatch = searchWords.every(word => cleanBookTitle.includes(word));
+              
+              // 전처리 검색어 매칭: 모든 전처리 단어가 도서 제목에 포함되는지 확인
+              const processedMatch = processedWords.every(word => cleanBookTitle.includes(word));
+              
+              // 기존 방식도 유지 (완전 포함 관계)
+              const fullOriginalMatch = cleanBookTitle.includes(cleanSearchTitle) || cleanSearchTitle.includes(cleanBookTitle);
+              const fullProcessedMatch = cleanBookTitle.includes(cleanProcessedTitle) || cleanProcessedTitle.includes(cleanBookTitle);
+              
+              const isMatch = originalMatch || processedMatch || fullOriginalMatch || fullProcessedMatch;
+              console.log(`  - 단어별 원본 매칭: ${originalMatch}, 단어별 전처리 매칭: ${processedMatch}`);
+              console.log(`  - 완전 포함 원본 매칭: ${fullOriginalMatch}, 완전 포함 전처리 매칭: ${fullProcessedMatch}`);
+              console.log(`  - 최종 매칭: ${isMatch}`);
+              
+              return isMatch;
             });
+            
+            console.log("🔍 필터링 후 도서 수:", filteredProxyBooks.length);
             
             proxyResult.response.docs.doc = filteredProxyBooks;
             proxyResult.response.numFound = filteredProxyBooks.length.toString();
@@ -854,46 +940,14 @@ export const apiService = {
           console.error('프록시 제목 검색 호출도 실패:', proxyError);
         }
       }
-      
-      // 에러 시 더미 데이터 반환
-      console.log("⚠️ 에러 발생 - 더미 제목 검색 데이터 사용");
+      // 에러 시 빈 결과 반환
+      console.log("⚠️ API 호출 실패 - 검색 결과 없음");
       return {
         data: {
           response: {
-            docs: [
-              {
-                doc: {
-                  bookname: "위버멘쉬",
-                  authors: "프리드리히 니체",
-                  publisher: "더클래식",
-                  bookImageURL: "/dummy-image.png",
-                  description: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
-                  isbn13: "9788960861234"
-                }
-              },
-              {
-                doc: {
-                  bookname: "데미안",
-                  authors: "헤르만 헤세",
-                  publisher: "민음사",
-                  bookImageURL: "https://image.aladin.co.kr/product/32425/0/cover500/k112939963_1.jpg",
-                  description: "자아를 찾아가는 성장의 여정",
-                  isbn13: "9788937473456"
-                }
-              },
-              {
-                doc: {
-                  bookname: "호밀밭의 파수꾼",
-                  authors: "J.D. 샐린저",
-                  publisher: "민음사",
-                  bookImageURL: "https://image.aladin.co.kr/product/32425/0/cover500/k112939963_2.jpg",
-                  description: "청춘의 방황과 진실에 대한 갈망",
-                  isbn13: "9788937473463"
-                }
-              }
-            ],
-            numFound: 3,
-            resultNum: 3
+            docs: [],
+            numFound: 0,
+            resultNum: 0
           }
         }
       };
@@ -1143,10 +1197,10 @@ export const apiService = {
 
   // 병렬 처리를 통한 키워드 검색 (여러 페이지 동시 검색)
   searchBooksByKeywordParallel: parallelUtils.measurePerformance('searchBooksByKeywordParallel', async (keyword, maxPages = 3, pageSize = 20, maxConcurrency = 3) => {
-    // 키워드 전처리: 앞의 두 단어만 추출
+    // 키워드 전처리: 공백으로 구분하여 앞의 두 단어만 추출하고 세미콜론으로 조인
     const processKeyword = (keyword) => {
       const words = keyword.trim().split(/\s+/).filter(word => word.length > 0);
-      return words.slice(0, 2).join(' ');
+      return words.slice(0, 2).join(';');
     };
     
     const processedKeyword = processKeyword(keyword);
@@ -1207,8 +1261,16 @@ export const apiService = {
   }),
 
   // 병렬 처리를 통한 제목 검색 (여러 페이지 동시 검색)
-  searchBooksByTitleParallel: parallelUtils.measurePerformance('searchBooksByTitleParallel', async (title, maxPages = 3, pageSize = 20, maxConcurrency = 3) => {
+  searchBooksByTitleParallel: parallelUtils.measurePerformance('searchBooksByTitleParallel', async (title, maxPages = 10, pageSize = 20, maxConcurrency = 3) => {
+    // 제목 전처리: 공백을 세미콜론으로 변경
+    const processTitle = (title) => {
+      return title.trim().replace(/\s+/g, ';');
+    };
+    
+    const processedTitle = processTitle(title);
+    
     console.log(`🚀 병렬 제목 검색: "${title}" (최대 ${maxPages}페이지)`);
+    console.log(`📝 전처리된 제목: "${processedTitle}"`);
     
     const pageNumbers = Array.from({ length: maxPages }, (_, i) => i + 1);
     
@@ -1223,11 +1285,52 @@ export const apiService = {
             ? response.data.response.docs.doc 
             : [response.data.response.docs.doc];
           
-          // 제목 필터링 (더 정확한 매칭)
+          console.log(`📚 ${pageNo}페이지 필터링 전 도서 수:`, books.length);
+          console.log(`📚 ${pageNo}페이지 도서 목록:`, books.map(b => b.bookname));
+          
+          // 제목 필터링 (원본 제목과 전처리된 제목 모두로 매칭)
           const filteredBooks = books.filter(book => {
             const bookTitle = book.bookname?.toLowerCase() || '';
             const searchTitle = title.toLowerCase();
-            return bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle);
+            const processedSearchTitle = processedTitle.toLowerCase();
+            
+            console.log(`🔍 ${pageNo}페이지 매칭 시도:`);
+            console.log(`  - 도서 제목: "${bookTitle}"`);
+            console.log(`  - 검색 제목: "${searchTitle}"`);
+            console.log(`  - 전처리 제목: "${processedSearchTitle}"`);
+            
+            // 특수문자 제거하여 비교 (주요 조사 보존)
+            const cleanBookTitle = bookTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+            const cleanSearchTitle = searchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+            const cleanProcessedTitle = processedSearchTitle.replace(/[^\w\s가-힣의는을를이가와과]/g, '').trim();
+            
+            console.log(`  - 정리된 도서 제목: "${cleanBookTitle}"`);
+            console.log(`  - 정리된 검색 제목: "${cleanSearchTitle}"`);
+            console.log(`  - 정리된 전처리 제목: "${cleanProcessedTitle}"`);
+            
+            // 검색어를 단어로 분리하여 각 단어가 포함되는지 확인
+            const searchWords = cleanSearchTitle.split(/\s+/).filter(word => word.length > 0);
+            const processedWords = cleanProcessedTitle.split(/[;\s]+/).filter(word => word.length > 0);
+            
+            console.log(`  - 검색 단어들: [${searchWords.join(', ')}]`);
+            console.log(`  - 전처리 단어들: [${processedWords.join(', ')}]`);
+            
+            // 원본 검색어 매칭: 모든 검색 단어가 도서 제목에 포함되는지 확인
+            const originalMatch = searchWords.every(word => cleanBookTitle.includes(word));
+            
+            // 전처리 검색어 매칭: 모든 전처리 단어가 도서 제목에 포함되는지 확인
+            const processedMatch = processedWords.every(word => cleanBookTitle.includes(word));
+            
+            // 기존 방식도 유지 (완전 포함 관계)
+            const fullOriginalMatch = cleanBookTitle.includes(cleanSearchTitle) || cleanSearchTitle.includes(cleanBookTitle);
+            const fullProcessedMatch = cleanBookTitle.includes(cleanProcessedTitle) || cleanProcessedTitle.includes(cleanBookTitle);
+            
+            const isMatch = originalMatch || processedMatch || fullOriginalMatch || fullProcessedMatch;
+            console.log(`  - 단어별 원본 매칭: ${originalMatch}, 단어별 전처리 매칭: ${processedMatch}`);
+            console.log(`  - 완전 포함 원본 매칭: ${fullOriginalMatch}, 완전 포함 전처리 매칭: ${fullProcessedMatch}`);
+            console.log(`  - 최종 매칭: ${isMatch}`);
+            
+            return isMatch;
           });
           
           console.log(`✅ "${title}" ${pageNo}페이지: ${filteredBooks.length}개 도서`);
