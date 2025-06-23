@@ -31,6 +31,8 @@ import os
 import uuid
 from typing import List, Tuple
 from fastapi import UploadFile
+import time
+import re
 
 from app.models.response import OCRResponse
 from app.config.settings import settings
@@ -232,120 +234,201 @@ class OCRService:
         
         return image
     
-    async def extract_text(self, file: UploadFile) -> OCRResponse:
-        """이미지에서 텍스트 추출"""
+    async def _perform_ocr(self, image: np.ndarray) -> list:
+        """
+        이미지에서 OCR 수행
+        
+        Args:
+            image (np.ndarray): OCR 처리할 이미지
+            
+        Returns:
+            list: OCR 결과 리스트
+        """
         try:
-            print(f"🔍 OCR 시작: {file.filename}")
-            
-            # 파일 읽기
-            contents = await file.read()
-            image = Image.open(io.BytesIO(contents))
-            
-            # OpenCV 형식으로 변환
-            cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            
-            # 이미지 크기 조정 (처리 속도 향상)
-            cv_image = self._resize_image(cv_image)
+            print("🔍 OCR 처리 시작...")
             
             # 원본 이미지로 먼저 OCR 시도
             print("🔍 원본 이미지로 OCR 시도...")
-            original_results = self.reader.readtext(cv_image)
+            original_results = self.reader.readtext(image)
             print(f"📊 원본 이미지 OCR 결과: {len(original_results)}개 텍스트 발견")
             
             if original_results:
-                for i, (bbox, text, conf) in enumerate(original_results[:3]):  # 처음 3개만 출력
+                for i, (bbox, text, conf) in enumerate(original_results[:3]):
                     print(f"  {i+1}. '{text}' (신뢰도: {conf:.2f})")
+                return original_results
             
             # 원본에서 결과가 없으면 전처리 시도
-            if not original_results:
-                print("⚠️ 원본 이미지에서 텍스트를 찾지 못했습니다. 전처리 시도...")
-                
-                # 다양한 전처리 방법 적용
-                preprocessed_images = []
-                
-                # 1. 원본 이미지 기반 전처리 (최소한의 처리)
-                print("🔍 원본 기반 전처리 적용...")
-                preprocessed_images.append(self._preprocess_original(cv_image))
-                
-                # 2. 다중 스케일 전처리 적용 (약한 강도)
-                print("🔍 다중 스케일 전처리 적용...")
-                multiscale_images = self._preprocess_multiscale(cv_image)
-                preprocessed_images.extend(multiscale_images)
-                
-                # 3. 작은 텍스트 강화 전처리도 추가 (약한 강도)
-                print("🔍 작은 텍스트 강화 전처리 적용...")
-                small_text_enhanced = self._enhance_small_text(cv_image)
-                preprocessed_images.append(small_text_enhanced)
-                
-                # 4. 원본 이미지도 직접 사용 (전처리 없이)
-                print("🔍 원본 이미지 직접 사용...")
-                preprocessed_images.append(cv_image)
-                
-                # 모든 전처리된 이미지에서 OCR 수행
-                all_results = []
-                for i, preprocessed_image in enumerate(preprocessed_images):
-                    print(f"🔍 전처리 이미지 {i+1}/{len(preprocessed_images)}에서 OCR 수행...")
-                    try:
-                        results = self.reader.readtext(preprocessed_image)
-                        print(f"  → {len(results)}개 텍스트 발견")
-                        all_results.extend(results)
-                    except Exception as e:
-                        print(f"  → OCR 실패: {e}")
-                
-                # 중복 제거 및 신뢰도 기반 필터링
-                unique_results = self._filter_and_merge_results(all_results)
-                final_results = unique_results
-            else:
-                final_results = original_results
+            print("⚠️ 원본 이미지에서 텍스트를 찾지 못했습니다. 전처리 시도...")
             
-            # 결과 처리
-            extracted_text = []
-            bounding_boxes = []
+            # 다양한 전처리 방법 적용
+            preprocessed_images = []
             
-            for (bbox, text, confidence) in final_results:
-                extracted_text.append(text)
-                # numpy 타입을 Python 기본 타입으로 변환
-                converted_bbox = [[float(x), float(y)] for x, y in bbox]
-                bounding_boxes.append(converted_bbox)
+            # 1. 원본 이미지 기반 전처리 (최소한의 처리)
+            print("🔍 원본 기반 전처리 적용...")
+            preprocessed_images.append(self._preprocess_original(image))
             
-            print(f"📊 최종 OCR 결과: {len(extracted_text)}개 텍스트")
-            if extracted_text:
-                print(f"📝 추출된 텍스트: {' '.join(extracted_text[:3])}...")
+            # 2. 다중 스케일 전처리 적용 (약한 강도)
+            print("🔍 다중 스케일 전처리 적용...")
+            multiscale_images = self._preprocess_multiscale(image)
+            preprocessed_images.extend(multiscale_images)
             
-            # 결과 이미지 생성 (원본 이미지에 바운딩 박스 표시)
-            result_image = self._create_result_image(cv_image, final_results)
+            # 3. 작은 텍스트 강화 전처리도 추가 (약한 강도)
+            print("🔍 작은 텍스트 강화 전처리 적용...")
+            small_text_enhanced = self._enhance_small_text(image)
+            preprocessed_images.append(small_text_enhanced)
             
-            # 결과 이미지 저장
+            # 4. 원본 이미지도 직접 사용 (전처리 없이)
+            print("🔍 원본 이미지 직접 사용...")
+            preprocessed_images.append(image)
+            
+            # 모든 전처리된 이미지에서 OCR 수행
+            all_results = []
+            for i, preprocessed_image in enumerate(preprocessed_images):
+                print(f"🔍 전처리 이미지 {i+1}/{len(preprocessed_images)}에서 OCR 수행...")
+                try:
+                    results = self.reader.readtext(preprocessed_image)
+                    print(f"  → {len(results)}개 텍스트 발견")
+                    all_results.extend(results)
+                except Exception as e:
+                    print(f"  → OCR 실패: {e}")
+            
+            return all_results
+            
+        except Exception as e:
+            print(f"❌ OCR 수행 실패: {e}")
+            return []
+    
+    async def _save_result_image(self, result_image: np.ndarray, original_filename: str) -> str:
+        """
+        결과 이미지 저장
+        
+        Args:
+            result_image (np.ndarray): 저장할 결과 이미지
+            original_filename (str): 원본 파일명
+            
+        Returns:
+            str: 저장된 이미지 경로
+        """
+        try:
+            # 파일명 생성
             filename = f"{uuid.uuid4()}.jpg"
             result_path = os.path.join(settings.RESULTS_DIR, filename)
+            
+            # 이미지 저장
             cv2.imwrite(result_path, result_image)
+            print(f"💾 결과 이미지 저장: {result_path}")
+            
+            # 이미지 개수 제한 적용 (20개 유지)
+            await self._limit_result_images()
+            
+            return filename
+            
+        except Exception as e:
+            print(f"⚠️ 결과 이미지 저장 실패: {e}")
+            return None
+    
+    async def _limit_result_images(self):
+        """결과 이미지 개수를 20개로 제한하고 오래된 이미지 삭제"""
+        try:
+            # 결과 디렉토리의 모든 이미지 파일 확인
+            files = [f for f in os.listdir(settings.RESULTS_DIR) 
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            
+            # 20개를 초과하는 경우
+            if len(files) > settings.MAX_RESULT_IMAGES:
+                # 파일 경로와 생성 시간을 함께 저장
+                file_times = []
+                for filename in files:
+                    file_path = os.path.join(settings.RESULTS_DIR, filename)
+                    if os.path.exists(file_path):
+                        creation_time = os.path.getctime(file_path)
+                        file_times.append((file_path, creation_time))
+                
+                # 생성 시간 기준으로 정렬 (오래된 것부터)
+                file_times.sort(key=lambda x: x[1])
+                
+                # 가장 오래된 파일들 삭제 (20개 초과분만)
+                files_to_delete = file_times[:-settings.MAX_RESULT_IMAGES]
+                
+                for file_path, _ in files_to_delete:
+                    try:
+                        os.remove(file_path)
+                        print(f"🗑️ 오래된 결과 이미지 삭제: {os.path.basename(file_path)}")
+                    except Exception as e:
+                        print(f"⚠️ 이미지 삭제 실패: {file_path} - {e}")
+                
+                print(f"✅ 결과 이미지 개수 제한 적용: {len(files)} → {settings.MAX_RESULT_IMAGES}")
+                        
+        except Exception as e:
+            print(f"⚠️ 이미지 개수 제한 처리 중 오류: {e}")
+    
+    def _convert_results_to_python(self, results):
+        """OCR 결과의 numpy 타입을 파이썬 기본 타입으로 변환"""
+        converted = []
+        for bbox, text, confidence in results:
+            bbox_py = [[float(x), float(y)] for x, y in bbox]
+            converted.append((bbox_py, str(text), float(confidence)))
+        return converted
 
-            # 결과 이미지 파일 개수 제한 (20개 초과 시 오래된 파일 삭제)
-            try:
-                files = [os.path.join(settings.RESULTS_DIR, f) for f in os.listdir(settings.RESULTS_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-                if len(files) > 20:
-                    files.sort(key=lambda x: os.path.getctime(x))  # 생성시간 기준 정렬
-                    for old_file in files[:-20]:
-                        try:
-                            os.remove(old_file)
-                            print(f"🗑️ 오래된 결과 이미지 삭제: {old_file}")
-                        except Exception as e:
-                            print(f"⚠️ 이미지 삭제 실패: {old_file} - {e}")
-            except Exception as e:
-                print(f"⚠️ 결과 이미지 정리 중 오류: {e}")
+    async def extract_text(self, file: UploadFile) -> OCRResponse:
+        """
+        파일 업로드 기반 텍스트 추출
+        
+        Args:
+            file (UploadFile): 업로드된 이미지 파일
+            
+        Returns:
+            OCRResponse: OCR 처리 결과
+        """
+        start_time = time.time()
+        
+        try:
+            print(f"📁 파일 처리 시작: {file.filename}")
+            
+            # 파일 내용 읽기
+            file_content = await file.read()
+            image_array = np.frombuffer(file_content, np.uint8)
+            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+            
+            if image is None:
+                raise OCRException("이미지를 읽을 수 없습니다.")
+            
+            print(f"📏 원본 이미지 크기: {image.shape}")
+            
+            # 이미지 크기 조정 (너무 큰 이미지 처리)
+            image = self._resize_image(image)
+            
+            # OCR 처리
+            results = await self._perform_ocr(image)
+            
+            # 결과 필터링 및 병합
+            filtered_results = self._filter_and_merge_results(results)
+            
+            # 추출된 텍스트 생성
+            extracted_text = "\n".join([result[1] for result in filtered_results])
+            
+            # 처리 시간 계산
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            
+            # 결과 이미지 생성 (설정에 따라 저장)
+            result_image_path = None
+            if settings.SAVE_RESULT_IMAGES:
+                result_image = self._create_result_image(image, filtered_results)
+                result_image_path = await self._save_result_image(result_image, file.filename)
+            
+            print(f"✅ OCR 처리 완료 - 텍스트 길이: {len(extracted_text)}")
             
             return OCRResponse(
-                original_filename=file.filename,
-                extracted_text=" ".join(extracted_text),
-                confidence_scores=[float(conf) for _, _, conf in final_results],
-                bounding_boxes=bounding_boxes,
-                result_image_url=f"/static/results/{filename}",
-                total_text_count=len(extracted_text)
+                extracted_text=extracted_text,
+                confidence_scores=[float(result[2]) for result in filtered_results],
+                processing_time_ms=processing_time_ms,
+                result_image_path=result_image_path,
+                text_boxes=self._convert_results_to_python(filtered_results)
             )
             
         except Exception as e:
-            print(f"❌ OCR 실패: {e}")
-            raise OCRException(f"텍스트 추출 실패: {str(e)}")
+            print(f"❌ OCR 처리 실패: {e}")
+            raise OCRException(f"OCR 처리 중 오류가 발생했습니다: {str(e)}")
     
     def _filter_and_merge_results(self, all_results: list) -> list:
         """OCR 결과 중복 제거 및 신뢰도 기반 필터링"""
@@ -495,12 +578,11 @@ class OCRService:
                 print(f"📝 추출된 텍스트: {' '.join(extracted_text)}")
             
             return OCRResponse(
-                original_filename=os.path.basename(image_path),
                 extracted_text=" ".join(extracted_text),
                 confidence_scores=[float(conf) for _, _, conf in results],
-                bounding_boxes=bounding_boxes,
-                result_image_url="",
-                total_text_count=len(extracted_text)
+                processing_time_ms=None,
+                result_image_path=None,
+                text_boxes=self._convert_results_to_python(results)
             )
             
         except Exception as e:
@@ -518,4 +600,47 @@ class OCRService:
             # 업로드 파일 OCR (운영용)
             return await self.extract_text(file)
         else:
-            raise OCRException("파일 또는 이미지 경로가 필요합니다.") 
+            raise OCRException("파일 또는 이미지 경로가 필요합니다.")
+
+    def _clean_text(self, text: str) -> str:
+        """텍스트에서 특수문자 제거 및 정리"""
+        # 한글, 영어, 숫자, 공백만 허용
+        cleaned = re.sub(r'[^가-힣a-zA-Z0-9\s]', '', text)
+        
+        # 연속된 공백을 하나로 정리
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        
+        # 앞뒤 공백 제거
+        cleaned = cleaned.strip()
+        
+        return cleaned
+
+    def _format_text_with_boxes(self, text_boxes):
+        """텍스트와 바운딩 박스 정보를 함께 포맷팅"""
+        if not text_boxes:
+            return ""
+        
+        formatted_lines = []
+        for i, (bbox, text, confidence) in enumerate(text_boxes):
+            # 텍스트에서 특수문자 제거
+            cleaned_text = self._clean_text(text)
+            
+            # 빈 텍스트는 건너뛰기
+            if not cleaned_text:
+                continue
+            
+            # 바운딩 박스 좌표 추출
+            x_coords = [point[0] for point in bbox]
+            y_coords = [point[1] for point in bbox]
+            
+            # 위치 정보 계산
+            left = min(x_coords)
+            top = min(y_coords)
+            right = max(x_coords)
+            bottom = max(y_coords)
+            
+            # 텍스트와 위치 정보를 함께 포맷팅
+            line = f"[{i+1}] 텍스트: '{cleaned_text}' | 위치: ({left:.0f}, {top:.0f}) ~ ({right:.0f}, {bottom:.0f}) | 신뢰도: {confidence:.2f}"
+            formatted_lines.append(line)
+        
+        return "\n".join(formatted_lines) 

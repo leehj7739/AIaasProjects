@@ -192,6 +192,55 @@ back_fastapi/
 - **한글 폰트**: 맑은 고딕, 굴림 등 지원
 - **자동 정리**: 결과 이미지 20개 유지
 
+## 🖼️ 이미지 저장 정책
+
+### 현재 설정 (권장)
+
+```python
+# app/config/settings.py
+SAVE_UPLOADED_IMAGES: bool = False  # 업로드된 원본 이미지 저장 안함
+SAVE_RESULT_IMAGES: bool = False    # OCR 결과 이미지 저장 안함
+CLEANUP_OLD_IMAGES: bool = True     # 오래된 이미지 자동 정리
+IMAGE_RETENTION_HOURS: int = 24     # 이미지 보관 시간 (24시간)
+```
+
+### 이미지 저장 비활성화 이유
+
+1. **🔒 보안 및 개인정보 보호**
+   - 사용자 업로드 이미지의 개인정보 유출 방지
+   - GDPR, 개인정보보호법 준수
+
+2. **💾 저장공간 최적화**
+   - 디스크 공간 절약
+   - 서버 성능 향상
+
+3. **⚡ 성능 최적화**
+   - 파일 I/O 작업 최소화
+   - 메모리 사용량 감소
+
+### 이미지 저장 활성화 방법
+
+개발/디버깅 목적으로 이미지 저장이 필요한 경우:
+
+```python
+# app/config/settings.py에서 설정 변경
+SAVE_UPLOADED_IMAGES: bool = True   # 원본 이미지 저장
+SAVE_RESULT_IMAGES: bool = True     # 결과 이미지 저장
+```
+
+### 이미지 정리
+
+```bash
+# 수동 정리 스크립트 실행
+python cleanup_images.py
+
+# API를 통한 정리
+curl -X DELETE http://localhost:8000/api/ocr/results/cleanup
+
+# 개별 이미지 삭제
+curl -X DELETE http://localhost:8000/api/ocr/result/{filename}
+```
+
 ## ⚠️ 주의사항
 
 1. **API 키 보안**: `.env` 파일에 API 키를 저장하고, 절대 Git에 커밋하지 마세요.

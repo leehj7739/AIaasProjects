@@ -8,6 +8,6 @@ def setup_cors(app: FastAPI):
         CORSMiddleware,
         allow_origins=settings.BACKEND_CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # 모든 HTTP 메서드 허용
+        allow_headers=["*"],  # 모든 헤더 허용
     ) 

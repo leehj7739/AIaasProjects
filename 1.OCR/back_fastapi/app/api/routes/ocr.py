@@ -71,6 +71,39 @@ async def get_result_image(filename: str):
     
     return FileResponse(file_path)
 
+@router.delete("/result/{filename}")
+async def delete_result_image(filename: str):
+    """결과 이미지 삭제"""
+    file_path = os.path.join(settings.RESULTS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="결과 이미지를 찾을 수 없습니다.")
+    
+    try:
+        os.remove(file_path)
+        return {"message": "이미지가 성공적으로 삭제되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이미지 삭제 중 오류: {str(e)}")
+
+@router.delete("/results/cleanup")
+async def cleanup_all_results():
+    """모든 결과 이미지 정리"""
+    try:
+        files = [f for f in os.listdir(settings.RESULTS_DIR) 
+                if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+        
+        deleted_count = 0
+        for filename in files:
+            file_path = os.path.join(settings.RESULTS_DIR, filename)
+            try:
+                os.remove(file_path)
+                deleted_count += 1
+            except Exception as e:
+                print(f"⚠️ 이미지 삭제 실패: {filename} - {e}")
+        
+        return {"message": f"{deleted_count}개의 이미지가 삭제되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이미지 정리 중 오류: {str(e)}")
+
 @router.post("/extract-and-analyze", response_model=CombinedResponse)
 async def extract_and_analyze_file(
     file: UploadFile = File(...),
@@ -82,8 +115,11 @@ async def extract_and_analyze_file(
         # OCR 처리
         ocr_result = await ocr_service.extract_text(file)
         
-        # GPT 책 제목 추출
-        gpt_result = await gpt_service.extract_book_title(ocr_result.extracted_text)
+        # 텍스트와 바운딩 박스 정보를 함께 구성
+        text_with_boxes = ocr_service._format_text_with_boxes(ocr_result.text_boxes)
+        
+        # GPT 책 제목 추출 (바운딩 박스 정보 포함)
+        gpt_result = await gpt_service.extract_book_title_with_boxes(text_with_boxes)
         
         # 총 처리 시간 계산
         total_processing_time_ms = (ocr_result.processing_time_ms or 0) + (gpt_result.response_time_ms or 0)
@@ -103,8 +139,11 @@ async def extract_and_analyze_test(request: CombinedRequest):
         # OCR 처리
         ocr_result = await ocr_service.extract_text_with_mode(image_path=request.image_url, mode="test")
         
-        # GPT 책 제목 추출
-        gpt_result = await gpt_service.extract_book_title(ocr_result.extracted_text)
+        # 텍스트와 바운딩 박스 정보를 함께 구성
+        text_with_boxes = ocr_service._format_text_with_boxes(ocr_result.text_boxes)
+        
+        # GPT 책 제목 추출 (바운딩 박스 정보 포함)
+        gpt_result = await gpt_service.extract_book_title_with_boxes(text_with_boxes)
         
         # 총 처리 시간 계산
         total_processing_time_ms = (ocr_result.processing_time_ms or 0) + (gpt_result.response_time_ms or 0)

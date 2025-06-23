@@ -3,15 +3,12 @@ from typing import List, Optional, Any
 from datetime import datetime
 
 class OCRResponse(BaseModel):
-    """OCR 응답 모델"""
-    original_filename: str = Field(..., description="원본 파일명")
-    extracted_text: str = Field(..., description="추출된 텍스트")
-    confidence_scores: List[float] = Field(..., description="신뢰도 점수 목록")
-    bounding_boxes: List[List] = Field(..., description="바운딩 박스 좌표")
-    result_image_url: str = Field(..., description="결과 이미지 URL")
-    total_text_count: int = Field(..., description="추출된 텍스트 개수")
-    processing_time_ms: Optional[float] = Field(None, description="처리 시간 (밀리초)")
-    error_message: Optional[str] = Field(None, description="오류 메시지")
+    """OCR 처리 결과 응답 모델"""
+    extracted_text: str
+    confidence_scores: List[float]
+    processing_time_ms: Optional[int] = None
+    result_image_path: Optional[str] = None
+    text_boxes: Optional[List[Any]] = None
 
 class GPTResponse(BaseModel):
     """GPT 응답 모델"""

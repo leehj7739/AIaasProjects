@@ -45,6 +45,11 @@ class Settings:
         "http://127.0.0.1:3000",  # React localhost
         "http://127.0.0.1:3001",  # React 대체 포트
         "http://192.168.45.120:3000",  # React 서버 (네트워크 IP)
+        "http://192.168.45.120:3001",  # React 서버 대체 포트
+        "http://192.168.45.120:8000",  # FastAPI 서버 (네트워크 IP)
+        "http://localhost:8000",  # FastAPI 서버 (로컬)
+        "http://127.0.0.1:8000",  # FastAPI 서버 (로컬)
+        "*",  # 모든 origin 허용 (개발 환경용)
     ]
     
     # ==================== OpenAI 설정 ====================
@@ -59,6 +64,13 @@ class Settings:
     ALLOWED_EXTENSIONS: list = [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]  # 허용된 이미지 형식
     UPLOAD_DIR: str = "app/static/uploads"   # 업로드된 파일 저장 경로
     RESULTS_DIR: str = "app/static/results"  # OCR 결과 이미지 저장 경로
+    
+    # ==================== 이미지 저장 설정 ====================
+    SAVE_UPLOADED_IMAGES: bool = False  # 업로드된 원본 이미지 저장 여부
+    SAVE_RESULT_IMAGES: bool = True     # OCR 결과 이미지 저장 여부 (바운딩 박스 포함)
+    CLEANUP_OLD_IMAGES: bool = True     # 오래된 이미지 자동 정리 여부
+    IMAGE_RETENTION_HOURS: int = 24     # 이미지 보관 시간 (시간 단위)
+    MAX_RESULT_IMAGES: int = 20         # 최대 결과 이미지 저장 개수
     
     # ==================== 보안 설정 ====================
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")  # JWT 토큰 암호화 키
