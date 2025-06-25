@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { MdAutoAwesome, MdMenuBook } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "../services/api";
@@ -225,6 +225,28 @@ export default function Ocr(props) {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
+  // 페이지 진입 시 상태 초기화 (viewMode가 아닐 때만)
+  useEffect(() => {
+    if (!viewMode) {
+      setMode("image");
+      setStatus(null);
+      setSearch("");
+      setErrorMessage("");
+      setOcrData(null);
+      setOcrTitle("");
+      setOcrResultImage(null);
+      setOriginalImage(null);
+      setResizeInfo(null);
+      setShowImageModal(false);
+      setModalImage(null);
+      
+      // 파일 입력 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, [viewMode]);
+
   // FastAPI 서버 헬스체크 함수
   const checkServerHealth = async () => {
     try {
@@ -328,14 +350,16 @@ export default function Ocr(props) {
         processedImage: processedFile.name,
         originalSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
         processedSize: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-        ocrResultImage: ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/static/${ocr_result.result_image_path}` : ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 이미지 사용',
+        ocrResultImage: ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}` : '오리지널 이미지 사용',
         gptResponse: gpt_result?.gpt_response,
         tokensUsed: gpt_result?.tokens_used,
         gptModel: gpt_result?.gpt_model
       });
       
       // OCR 결과 저장
-      const boundingBoxImageUrl = ocr_result?.result_image_path
+      const boundingBoxImageUrl = ocr_result?.result_image_url
+        ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}`
+        : ocr_result?.result_image_path
         ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`
         : null;
       let resizedImageUrl = null;
@@ -418,14 +442,16 @@ export default function Ocr(props) {
         processedImage: processedFile.name,
         originalSize: urlResizeInfo ? `${(originalFile.size / 1024 / 1024).toFixed(2)}MB` : `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
         processedSize: `${(processedFile.size / 1024 / 1024).toFixed(2)}MB`,
-        ocrResultImage: ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/static/${ocr_result.result_image_path}` : ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : '오리지널 URL 사용',
+        ocrResultImage: ocr_result?.result_image_url ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}` : ocr_result?.result_image_path ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}` : '오리지널 URL 사용',
         gptResponse: gpt_result?.gpt_response,
         tokensUsed: gpt_result?.tokens_used,
         gptModel: gpt_result?.gpt_model
       });
       
       // OCR 결과 저장
-      const boundingBoxImageUrl = ocr_result?.result_image_path
+      const boundingBoxImageUrl = ocr_result?.result_image_url
+        ? `${FASTAPI_BASE_URL}${ocr_result.result_image_url}`
+        : ocr_result?.result_image_path
         ? `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`
         : null;
       let resizedImageUrl = null;
@@ -494,10 +520,15 @@ export default function Ocr(props) {
 
   // OCR 결과 이미지 URL 설정 함수
   const setOcrResultImageWithFallback = (ocr_result, fallbackImage) => {
-    if (ocr_result?.result_image_path) {
-      // FastAPI 서버에서 제공하는 이미지 URL 형식
-      const boundingBoxImageUrl = `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`;
+    if (ocr_result?.result_image_url) {
+      // 서버에서 제공하는 result_image_url 사용
+      const boundingBoxImageUrl = `${FASTAPI_BASE_URL}${ocr_result.result_image_url}`;
       console.log('🔍 OCR 박싱 이미지 URL:', boundingBoxImageUrl);
+      setOcrResultImage(boundingBoxImageUrl);
+    } else if (ocr_result?.result_image_path) {
+      // 기존 result_image_path도 지원 (하위 호환성)
+      const boundingBoxImageUrl = `${FASTAPI_BASE_URL}/api/ocr/result/${ocr_result.result_image_path}`;
+      console.log('🔍 OCR 박싱 이미지 URL (legacy):', boundingBoxImageUrl);
       setOcrResultImage(boundingBoxImageUrl);
     } else {
       console.log('⚠️ 서버에서 박싱 이미지 URL을 반환하지 않음, 오리지널 이미지 사용');

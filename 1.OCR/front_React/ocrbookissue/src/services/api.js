@@ -3,7 +3,7 @@ import xml2js from 'xml2js';
 import config from '../config/config';
 
 // 환경 변수에서 API 설정 가져오기
-const API_KEY = process.env.REACT_APP_API_KEY;
+// const API_KEY = process.env.REACT_APP_API_KEY; // 사용하지 않으므로 제거
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://data4library.kr';
 
 // FastAPI 서버 URL - config에서 가져오기
@@ -11,7 +11,7 @@ const FASTAPI_BASE_URL = config.FASTAPI_BASE_URL;
 
 // 캐시 설정
 const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
-const CACHE_KEY = 'library_cache';
+// const CACHE_KEY = 'library_cache'; // 사용하지 않으므로 제거
 
 // 메모리 캐시
 const memoryCache = new Map();
@@ -222,7 +222,7 @@ const api = axios.create({
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${API_KEY}`,
+    // 'Authorization': `Bearer ${API_KEY}`,
   },
 });
 
@@ -304,6 +304,133 @@ const healthCheck = {
 
 // API 함수들
 export const apiService = {
+  // 추천도서 가져오기 (지난달 1일 ~ 오늘, 랜덤 3개)
+  getRecommendedBooks: async () => {
+    try {
+      // 날짜 계산: 지난달 1일 ~ 오늘
+      const today = new Date();
+      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      
+      const startDt = lastMonth.toISOString().split('T')[0]; // YYYY-MM-DD
+      const endDt = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      console.log("📚 추천도서 API 호출:", { startDt, endDt });
+      
+      const apiKey = process.env.REACT_APP_LIBRARY_API_KEY || 'test_api_key_123';
+      const url = `${API_BASE_URL}/api/loanItemSrch`;
+      
+      const params = {
+        authKey: apiKey,
+        startDt: startDt,
+        endDt: endDt,
+        gender: 1,
+        age: 20,
+        region: '11;31',
+        addCode: 0,
+        kdc: 6,
+        pageNo: 1,
+        pageSize: 20
+      };
+
+      const response = await axios.get(url, { params });
+      
+      console.log("📄 추천도서 API 응답:", response.data);
+      
+      // XML 응답을 파싱
+      const parser = new xml2js.Parser({ explicitArray: false });
+      const result = await parser.parseStringPromise(response.data);
+      
+      // 도서 목록 추출
+      const books = result.response?.docs?.doc || [];
+      const bookArray = Array.isArray(books) ? books : [books];
+      
+      // 원본 bookImageURL, isbn13 로그
+      bookArray.forEach((book, idx) => {
+        console.log(`[추천도서 원본] idx:${idx} | 제목:${book.bookname} | bookImageURL:`, book.bookImageURL, '| isbn13:', book.isbn13);
+      });
+      
+      console.log("📚 추출된 도서 수:", bookArray.length);
+      
+      // 랜덤으로 3개 선택
+      const shuffled = bookArray.sort(() => 0.5 - Math.random());
+      const selectedBooks = shuffled.slice(0, 3);
+      
+      // 선택된 도서 로그
+      selectedBooks.forEach((book, idx) => {
+        console.log(`[추천도서 랜덤선택] idx:${idx} | 제목:${book.bookname} | bookImageURL:`, book.bookImageURL, '| isbn13:', book.isbn13);
+      });
+      
+      // bookImageURL 안전 추출 함수
+      function getBookImageUrl(book) {
+        // 1. API에서 내려주는 이미지가 있으면 우선 사용
+        if (book.bookImageURL && typeof book.bookImageURL === 'string' && book.bookImageURL.startsWith('http')) {
+          return book.bookImageURL;
+        }
+        // 2. ISBN으로 openBD(일본) 표지 시도
+        if (book.isbn13 && typeof book.isbn13 === 'string') {
+          return `https://cover.openbd.jp/${book.isbn13}.jpg`;
+        }
+        // 3. 더미 이미지
+        return '/dummy-image.png';
+      }
+      
+      // 도서 정보 가공
+      const processedBooks = selectedBooks.map((book, idx) => {
+        const imgUrl = getBookImageUrl(book);
+        console.log(`[추천도서 최종] idx:${idx} | 제목:${book.bookname} | 최종 bookImageURL:`, imgUrl);
+        return {
+          bookname: book.bookname || '제목 없음',
+          authors: book.authors || '저자 정보 없음',
+          publisher: book.publisher || '출판사 정보 없음',
+          publication_year: book.publication_year || '출판년도 정보 없음',
+          isbn13: book.isbn13 || 'ISBN 정보 없음',
+          bookImageURL: imgUrl,
+          ranking: book.ranking || '-',
+          loan_count: book.loan_count || '-',
+          bookDtlUrl: book.bookDtlUrl || '',
+        };
+      });
+      
+      console.log("🎯 선택된 추천도서:", processedBooks);
+      
+      return processedBooks;
+      
+    } catch (error) {
+      console.error("❌ 추천도서 API 호출 실패:", error);
+      
+      // 에러 시 더미 데이터 반환
+      return [
+        {
+          title: "위버멘쉬",
+          author: "프리드리히 니체",
+          publisher: "더클래식",
+          desc: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
+          img: "/dummy-image.png",
+          isbn: "9788960861234",
+          rank: 123
+        },
+        {
+          title: "데미안",
+          author: "헤르만 헤세",
+          publisher: "민음사",
+          desc: "자아를 찾아가는 성장의 여정",
+          img: "/dummy-image.png",
+          isbn: "9788937473135",
+          rank: 45
+        },
+        {
+          title: "호밀밭의 파수꾼",
+          author: "J.D. 샐린저",
+          publisher: "민음사",
+          desc: "청춘의 방황과 진실에 대한 갈망",
+          img: "/dummy-image.png",
+          isbn: "9788937460449",
+          rank: 87
+        }
+      ];
+    }
+  },
+
   // OCR + GPT 통합 이미지 업로드 (FastAPI /extract-and-analyze 엔드포인트)
   uploadImage: async (imageFile, mode = "prod", gptPrompt = "책 제목 추출") => {
     const formData = new FormData();

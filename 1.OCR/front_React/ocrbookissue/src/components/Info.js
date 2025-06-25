@@ -3,18 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { apiService } from "../services/api";
 import FallbackImage from "./FallbackImage";
 import { HiXCircle } from "react-icons/hi2";
-
-// 더미 도서 데이터를 컴포넌트 외부로 이동하여 매번 새로 생성되지 않도록 함
-const dummyBooks = [
-  {
-    title: "위버멘쉬",
-    author: "프리드리히 니체",
-    publisher: "더클래식",
-    desc: "누구의 시선도 아닌, 내 의지대로 살겠다는 선언",
-    img: "/dummy-image.png",
-    isbn: "9788960861234"
-  }
-];
+import Loading from "./Loading";
 
 // ISBN 정규식 검증 함수
 const isValidISBN = (input) => {
@@ -33,6 +22,20 @@ const isValidISBN = (input) => {
 // ISBN 정규화 함수 (하이픈 제거)
 const normalizeISBN = (isbn) => {
   return isbn.replace(/[-\s]/g, '');
+};
+
+// 검색 히스토리 저장 함수
+const saveBookHistory = (query, type, title = "") => {
+  let history = JSON.parse(localStorage.getItem('bookHistory') || '[]');
+  history = history.filter(item => !(item.query === query && item.type === type));
+  history.unshift({
+    id: Date.now() + Math.random().toString(36).slice(2),
+    query,
+    type, // 'isbn', 'title', 'keyword', '검색실패'
+    title, // isbn 검색 시 책 제목 저장
+    createdAt: new Date().toISOString()
+  });
+  localStorage.setItem('bookHistory', JSON.stringify(history.slice(0, 20)));
 };
 
 export default function Info({ searchQuery, setSearchQuery }) {
@@ -88,6 +91,27 @@ export default function Info({ searchQuery, setSearchQuery }) {
     setSearchResults(currentSearchResults);
     setHasMore(hasMoreResults);
   }, [currentSearchResults, hasMoreResults]);
+
+  // 페이지 진입 시 상태 초기화
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const queryParam = params.get("query");
+    
+    // URL 파라미터가 없으면 모든 상태 초기화
+    if (!queryParam) {
+      setSearch("");
+      setCommittedSearch("");
+      setResult(null);
+      setSearchResults([]);
+      setSearched(false);
+      setLoading(false);
+      setSearchType("");
+      setCurrentPage(1);
+      setHasMore(false);
+      setAllSearchResults([]);
+      setKeywordResponse(null);
+    }
+  }, [location.pathname]); // pathname이 변경될 때만 실행
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -182,6 +206,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
           
           setResult(resultData);
           setSearchResults([]);
+          saveBookHistory(searchTerm, 'isbn', resultData.title);
         } else {
           console.log("❌ 도서 데이터를 찾을 수 없습니다.");
           setResult(null);
@@ -215,6 +240,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
           setAllSearchResults(processedResults);
           setCurrentPage(1); // 페이지 리셋
           setResult(null);
+          saveBookHistory(searchTerm, 'title');
         } else {
           console.log("❌ 제목 검색 결과가 없습니다. 키워드 검색을 시도합니다.");
           
@@ -247,12 +273,14 @@ export default function Info({ searchQuery, setSearchQuery }) {
             setAllSearchResults(processedKeywordResults);
             setCurrentPage(1); // 페이지 리셋
             setResult(null);
+            saveBookHistory(searchTerm, 'keyword');
           } else {
             console.log("❌ 키워드 검색 결과도 없습니다.");
             setAllSearchResults([]);
             setSearchResults([]);
             setResult(null);
             setKeywordResponse(null); // 키워드 응답도 리셋
+            saveBookHistory(searchTerm, '검색실패');
           }
         }
       }
@@ -336,6 +364,7 @@ export default function Info({ searchQuery, setSearchQuery }) {
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen p-4 bg-gradient-to-b from-violet-100 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
+      {loading && <Loading message="도서 정보를 불러오는 중..." />}
       {/* 검색 영역 */}
       <form className="w-full max-w-xs mb-4" onSubmit={handleSearch}>
         <label className="block text-sm font-bold text-gray-700 dark:text-gray-100 mb-1">도서 정보 검색</label>
@@ -376,37 +405,15 @@ export default function Info({ searchQuery, setSearchQuery }) {
         )}
       </form>
 
-      {/* 로딩 상태 */}
-      {loading && (
-        <div className="w-full max-w-xs text-center py-4">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">검색 중...</span>
-        </div>
-      )}
-
-      {/* 검색 전: 추천도서만 */}
+      {/* 검색 전: 빈 상태 */}
       {!searched && !loading && (
-        <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
-          <div className="w-full mb-2 text-center">
-            <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">추천 도서</span>
+        <div className="w-full max-w-xs mx-auto text-center py-8">
+          <div className="text-lg text-gray-600 dark:text-gray-400">
+            🔍 도서를 검색해보세요
           </div>
-          <FallbackImage src={dummyBooks[0].img} alt="책 표지" className="w-16 h-22 object-cover rounded-lg shadow-md mb-2" />
-          <div className="flex flex-col items-center w-full">
-            <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{dummyBooks[0].title}</div>
-            <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {dummyBooks[0].author}</div>
-            {dummyBooks[0].desc && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
-            )}
-            <div className="flex gap-2 mt-4 w-full">
-              <button 
-                className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
-                onClick={() => handleLibrarySearch(dummyBooks[0].isbn, dummyBooks[0].title)}
-              >
-                대여하러 가기
-              </button>
-            </div>
+          <div className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+            제목, ISBN, 키워드로 검색할 수 있습니다
           </div>
-          <div className="mb-2" />
         </div>
       )}
 
@@ -576,42 +583,18 @@ export default function Info({ searchQuery, setSearchQuery }) {
 
           {/* 검색 결과 없음 */}
           {searched && !loading && ((searchType === "isbn" && !result) || (searchType === "title" && searchResults.length === 0) || (searchType === "keyword" && searchResults.length === 0)) && (
-            <>
-              <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4 text-center">
-                <div className="text-lg font-extrabold text-red-600 dark:text-red-400 mb-2">🔍 검색 결과 없음</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  "{committedSearch}"에 대한 검색 결과가 없습니다.
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-500">
-                  {searchType === "isbn" ? "올바른 ISBN을 입력했는지 확인해주세요." : 
-                   searchType === "title" ? "제목 검색 후 키워드 검색도 시도했지만 결과가 없습니다." :
-                   searchType === "keyword" ? "제목 검색과 키워드 검색 모두 시도했지만 결과가 없습니다." : 
-                   "다른 검색어로 시도해보세요."}
-                </div>
+            <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4 text-center">
+              <div className="text-lg font-extrabold text-red-600 dark:text-red-400 mb-2">🔍 검색 결과 없음</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                "{committedSearch}"에 대한 검색 결과가 없습니다.
               </div>
-              <div className="w-full max-w-xs mx-auto bg-gray-50 dark:bg-gray-800 rounded-xl shadow-lg flex flex-col items-center p-3 mb-4">
-                <div className="w-full mb-2 text-center">
-                  <span className="inline-block text-lg font-extrabold text-purple-700 dark:text-purple-300 tracking-wide drop-shadow">추천 도서</span>
-                </div>
-                <FallbackImage src={dummyBooks[0].img} alt="책 표지" className="w-16 h-22 object-cover rounded-lg shadow-md mb-2" />
-                <div className="flex flex-col items-center w-full">
-                  <div className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">{dummyBooks[0].title}</div>
-                  <div className="text-xs text-gray-700 dark:text-gray-300 mb-0.5">저자: {dummyBooks[0].author}</div>
-                  {dummyBooks[0].desc && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{dummyBooks[0].desc}</div>
-                  )}
-                  <div className="flex gap-2 mt-4 w-full">
-                    <button 
-                      className="flex-1 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
-                      onClick={() => handleLibrarySearch(dummyBooks[0].isbn, dummyBooks[0].title)}
-                    >
-                      대여하러 가기
-                    </button>
-                  </div>
-                </div>
-                <div className="mb-2" />
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                {searchType === "isbn" ? "올바른 ISBN을 입력했는지 확인해주세요." : 
+                 searchType === "title" ? "제목 검색 후 키워드 검색도 시도했지만 결과가 없습니다." :
+                 searchType === "keyword" ? "제목 검색과 키워드 검색 모두 시도했지만 결과가 없습니다." : 
+                 "다른 검색어로 시도해보세요."}
               </div>
-            </>
+            </div>
           )}
         </>
       )}

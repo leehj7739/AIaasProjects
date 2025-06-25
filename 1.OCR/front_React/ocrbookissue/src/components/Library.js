@@ -108,6 +108,21 @@ function getRegionColor(region) {
   return regionColors[region] || regionColors['기타'];
 }
 
+// 도서관 검색 히스토리 저장 함수
+const saveLibraryHistory = (query) => {
+  if (!query.trim()) return;
+  
+  let history = JSON.parse(localStorage.getItem('libraryHistory') || '[]');
+  // 이미 동일한 검색어가 있으면 추가하지 않음
+  history = history.filter(item => item.query !== query.trim());
+  history.unshift({
+    id: Date.now() + Math.random().toString(36).slice(2),
+    query: query.trim(),
+    createdAt: new Date().toISOString()
+  });
+  localStorage.setItem('libraryHistory', JSON.stringify(history.slice(0, 20)));
+};
+
 export default function Library() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -124,6 +139,24 @@ export default function Library() {
 
   // 페이지당 아이템 수
   const ITEMS_PER_PAGE = 20;
+
+  // 페이지 진입 시 상태 초기화
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const bookParam = params.get("book");
+    const searchTypeParam = params.get("searchType");
+    
+    // URL 파라미터가 없으면 검색 관련 상태 초기화
+    if (!bookParam && !searchTypeParam) {
+      setQuery("");
+      setSearch("");
+      setIsISBNSearch(false);
+      setIsbnInfo(null);
+      setCurrentPage(1);
+      setHasMore(true);
+      setError("");
+    }
+  }, [location.pathname]); // pathname이 변경될 때만 실행
 
   // 검색 결과 필터링 (캐싱된 데이터에서 검색)
   const filtered = libraries.filter(lib => {
@@ -312,6 +345,42 @@ export default function Library() {
     const totalCountParam = params.get("totalCount");
     const regionParam = params.get("region");
     const regionNameParam = params.get("regionName");
+    const queryParam = params.get("query"); // 도서관 검색 히스토리에서 넘어온 검색어
+    
+    // 도서관 검색 히스토리에서 넘어온 검색어 처리
+    if (queryParam) {
+      setQuery(queryParam);
+      setSearch(queryParam);
+      setCurrentPage(1);
+      // 검색 실행
+      const filtered = libraries.filter(lib => {
+        const displayLib = lib.lib || lib;
+        const region = displayLib.region || displayLib.regionName || (displayLib.address ? displayLib.address.split(' ')[0].replace(/특별시|광역시|도/g, '') : '기타');
+        const shortRegion = getShortRegionName(region);
+        
+        const searchFields = [
+          displayLib.libName,
+          displayLib.libCode,
+          displayLib.address,
+          displayLib.tel,
+          displayLib.phone,
+          displayLib.homepage,
+          region,
+          shortRegion
+        ];
+        
+        const searchTerm = queryParam.toLowerCase();
+        return searchFields.some(field => 
+          field && field.toString().toLowerCase().includes(searchTerm)
+        );
+      });
+      
+      if (filtered.length > 0) {
+        setDisplayLibraries(filtered.slice(0, ITEMS_PER_PAGE));
+        setHasMore(filtered.length > ITEMS_PER_PAGE);
+      }
+      return; // 다른 파라미터 처리 중단
+    }
     
     if (bookParam) {
       setQuery(bookParam);
@@ -378,8 +447,11 @@ export default function Library() {
   // 통합 검색: 도서관명, 주소, 전화번호, 지역명으로 검색
   const handleSearch = (e) => {
     e.preventDefault();
-    setSearch(query);
-    setCurrentPage(1); // 검색 시 페이지 리셋
+    if (query.trim()) {
+      setSearch(query);
+      setCurrentPage(1); // 검색 시 페이지 리셋
+      saveLibraryHistory(query); // 히스토리에 저장
+    }
   };
 
   // 캐싱된 도서관 목록을 20개씩 보여주기

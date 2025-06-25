@@ -71,21 +71,27 @@ code {
   animation: fadein 0.3s ease-in-out;
 }
 
-/* 스크롤바 스타일링 */
+/* 커스텀 스크롤바 스타일 */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: #e0e7ff;
+  border-radius: 8px;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #6366f1 30%, #a5b4fc 100%);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #6366f133;
+  border: 2px solid #e0e7ff;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-track {
+    background: #232946;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #6366f1 30%, #818cf8 100%);
+    border: 2px solid #232946;
+  }
 }
