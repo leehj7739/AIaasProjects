@@ -64,17 +64,23 @@ export default function History() {
 
   // OCR 히스토리 검색 버튼
   const handleOcrSearch = (item) => {
-    window.location.href = `/info?query=${encodeURIComponent(item.extractedText)}`;
+    // 로딩 상태를 미리 설정하여 로딩 페이지가 안 뜨도록 함
+    localStorage.setItem('skipLoading', 'true');
+    navigate(`/info?query=${encodeURIComponent(item.extractedText)}`);
   };
 
   // 도서검색 히스토리 검색 버튼
   const handleBookSearch = (item) => {
-    window.location.href = `/info?query=${encodeURIComponent(item.query)}`;
+    // 로딩 상태를 미리 설정하여 로딩 페이지가 안 뜨도록 함
+    localStorage.setItem('skipLoading', 'true');
+    navigate(`/info?query=${encodeURIComponent(item.query)}`);
   };
 
   // 도서관검색 히스토리 검색 버튼
   const handleLibrarySearch = (item) => {
-    window.location.href = `/library?query=${encodeURIComponent(item.query)}`;
+    // 로딩 상태를 미리 설정하여 로딩 페이지가 안 뜨도록 함
+    localStorage.setItem('skipLoading', 'true');
+    navigate(`/library?query=${encodeURIComponent(item.query)}`);
   };
 
   // 타입 뱃지 텍스트 및 색상

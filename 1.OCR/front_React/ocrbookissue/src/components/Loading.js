@@ -3,7 +3,7 @@ import React from "react";
 const Loading = ({ message = "업로드 중..." }) => {
   return (
     <div
-      className="absolute inset-0 flex flex-col items-center justify-center z-30 shadow-2xl bg-gradient-to-br from-indigo-100 via-blue-100 to-purple-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 bg-opacity-95"
+      className="absolute inset-0 flex flex-col items-center justify-center z-30 shadow-2xl bg-gradient-to-br from-indigo-100/80 via-blue-100/80 to-purple-100/80 dark:from-gray-900/80 dark:via-gray-800/80 dark:to-gray-900/80 backdrop-blur-sm"
       tabIndex={0}
       aria-modal="true"
       onKeyDown={e => e.preventDefault()}
@@ -24,7 +24,7 @@ const Loading = ({ message = "업로드 중..." }) => {
           <path className="opacity-90" fill="#6366f1" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
         </svg>
       </div>
-      <div className="text-indigo-700 dark:text-indigo-200 font-bold text-lg mt-2 px-6 py-3 bg-white/80 dark:bg-gray-800/80 rounded-xl shadow text-center backdrop-blur-sm">
+      <div className="text-indigo-700 dark:text-indigo-200 font-bold text-lg mt-2 px-6 py-3 bg-white/70 dark:bg-gray-800/70 rounded-xl shadow text-center backdrop-blur-md">
         {message}
       </div>
     </div>

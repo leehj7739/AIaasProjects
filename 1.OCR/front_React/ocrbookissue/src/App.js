@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -6,9 +6,8 @@ import Main from "./components/Main";
 import Ocr from "./components/Ocr";
 import History from "./components/History";
 import Loading from "./components/Loading";
-// Info, Library만 lazy import
-const Info = lazy(() => import("./components/Info"));
-const Library = lazy(() => import("./components/Library"));
+import Info from "./components/Info";
+import Library from "./components/Library";
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -40,15 +39,13 @@ function App() {
       {loading && <Loading />}
       <Header />
       <div className="flex-1 overflow-y-auto">
-        <Suspense fallback={<Loading message="페이지를 불러오는 중..." />}> 
-          <Routes>
-            <Route path="/ocr" element={<Ocr loading={loading} setLoading={setLoading} setSearchQuery={setSearchQuery} />} />
-            <Route path="/info" element={<Info searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/" element={<Main />} />
-          </Routes>
-        </Suspense>
+        <Routes>
+          <Route path="/ocr" element={<Ocr loading={loading} setLoading={setLoading} setSearchQuery={setSearchQuery} />} />
+          <Route path="/info" element={<Info searchQuery={searchQuery} setSearchQuery={setSearchQuery} />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/" element={<Main />} />
+        </Routes>
       </div>
       <Footer />
     </div>

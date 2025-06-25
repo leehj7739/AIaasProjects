@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useLocation } from "react-router-dom";
 import { apiService } from "../services/api";
+import { lazy } from "react";
 
 const dummyLibraries = [];
 
@@ -123,11 +124,13 @@ const saveLibraryHistory = (query) => {
   localStorage.setItem('libraryHistory', JSON.stringify(history.slice(0, 20)));
 };
 
+const LibraryResults = lazy(() => import("./LibraryResults"));
+
 export default function Library() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [libraries, setLibraries] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -140,14 +143,21 @@ export default function Library() {
   // 페이지당 아이템 수
   const ITEMS_PER_PAGE = 20;
 
-  // 페이지 진입 시 상태 초기화
+  // 페이지 진입 시 상태 초기화 및 로딩 상태 설정
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const bookParam = params.get("book");
     const searchTypeParam = params.get("searchType");
+    const queryParam = params.get("query");
+    const skipLoading = localStorage.getItem('skipLoading') === 'true';
+    
+    // 히스토리에서 온 경우 skipLoading 플래그 제거
+    if (skipLoading) {
+      localStorage.removeItem('skipLoading');
+    }
     
     // URL 파라미터가 없으면 검색 관련 상태 초기화
-    if (!bookParam && !searchTypeParam) {
+    if (!bookParam && !searchTypeParam && !queryParam) {
       setQuery("");
       setSearch("");
       setIsISBNSearch(false);
@@ -155,6 +165,12 @@ export default function Library() {
       setCurrentPage(1);
       setHasMore(true);
       setError("");
+      setLoading(false); // 초기화 완료 후 로딩 상태 해제
+    } else {
+      // URL 파라미터가 있으면 로딩 상태 설정 (히스토리에서 온 경우 제외)
+      if (!skipLoading) {
+        setLoading(true);
+      }
     }
   }, [location.pathname]); // pathname이 변경될 때만 실행
 
@@ -660,95 +676,24 @@ export default function Library() {
         </div>
       )}
 
-      {/* 도서관 결과 리스트 */}
-      <div className="w-full max-w-xs rounded-xl shadow-inner p-3 mt-2">
-        {!loading && filtered.length === 0 ? (
-          <div className="text-center text-gray-500 mt-8">
-            <div className="mb-4">검색 결과가 없습니다.</div>
-            {search && (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-400 mb-2">
-                  현재 {libraries.length}개 도서관 데이터에서 검색됨
-                </div>
-                <button 
-                  onClick={() => {
-                    fetchAdditionalDataAndAddToCache(search);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition"
-                >
-                  🔍 추가 데이터 가져오기 (5페이지)
-                </button>
-                <button 
-                  onClick={() => {
-                    searchMoreFromServer();
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition"
-                >
-                  🚀 대량 병렬 검색 (10페이지)
-                </button>
-                <button 
-                  onClick={() => {
-                    clearCacheAndRefresh();
-                  }}
-                  className="px-4 py-2 bg-orange-600 text-white rounded font-bold hover:bg-orange-700 transition"
-                >
-                  🗑️ 캐시 비우기 & 새로고침
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-4">
-            {filtered.map((lib, idx) => {
-              // 지역명 추출 (API/더미 데이터 모두 region 또는 address에서 추출)
-              let region = '기타';
-              let shortRegion = '기타';
-              
-              // ISBN 검색 결과의 경우 lib 객체 안에 있는 데이터 구조
-              if (lib.lib) {
-                region = lib.lib.region || lib.lib.regionName || (lib.lib.address ? lib.lib.address.split(' ')[0].replace(/특별시|광역시|도/g, '') : '기타');
-                shortRegion = getShortRegionName(region);
-              } else {
-                // 일반 도서관 데이터의 경우
-                region = lib.region || lib.regionName || (lib.address ? lib.address.split(' ')[0].replace(/특별시|광역시|도/g, '') : '기타');
-                shortRegion = getShortRegionName(region);
-              }
-              
-              // 실제 표시할 도서관 데이터
-              const displayLib = lib.lib || lib;
-              
-              return (
-                <li key={idx} className="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col gap-1 relative">
-                  <div className="flex items-start justify-between">
-                    <div className="text-lg font-bold text-violet-700 dark:text-violet-300 break-words flex-1 min-w-0 mr-2">
-                      {displayLib.libName || displayLib.name}
-                    </div>
-                    <span className={`ml-2 px-2 py-1 rounded text-xs font-bold ${getRegionColor(shortRegion)} whitespace-nowrap flex-shrink-0`}>{shortRegion}</span>
-                  </div>
-                  <div className="text-xs text-gray-700 dark:text-gray-300">주소: {displayLib.address || '주소 정보 없음'}</div>
-                  <div className="text-xs text-gray-700 dark:text-gray-300">운영시간: {displayLib.operatingTime || displayLib.hours || '운영시간 정보 없음'}</div>
-                  <div className="text-xs text-gray-700 dark:text-gray-300">전화번호: {displayLib.tel || displayLib.phone || '전화번호 정보 없음'}</div>
-                  <div className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <span className="whitespace-nowrap">홈페이지:</span>
-                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                      <a href={displayLib.homepage} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-300 no-underline font-bold truncate flex-1 min-w-0">
-                        {displayLib.homepage || '홈페이지 정보 없음'}
-                      </a>
-                      <span className="flex-shrink-0 text-blue-500 dark:text-blue-400 text-sm">🔗</span>
-                    </div>
-                  </div>
-                  {displayLib.BookCount && (
-                    <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">📚 도서 수: {displayLib.BookCount}권</div>
-                  )}
-                  {displayLib.bookCount && (
-                    <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold">📚 도서 수: {displayLib.bookCount}권</div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {/* 도서관 검색 결과 표시 부분을 lazy 컴포넌트로 대체 */}
+      <Suspense fallback={<div className="w-full max-w-md mx-auto text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div><div className="text-gray-600 dark:text-gray-400">도서관 정보를 불러오는 중...</div></div>}>
+        <LibraryResults
+          libraries={libraries}
+          displayLibraries={displayLibraries}
+          loading={loading}
+          error={error}
+          isISBNSearch={isISBNSearch}
+          isbnInfo={isbnInfo}
+          searchQuery={search}
+          totalCount={libraries.length}
+          hasMore={hasMore}
+          onLoadMore={loadMoreFromAPI}
+          onClearISBNResults={clearISBNResults}
+          onShowCachedList={showCachedLibraryList}
+          onClearCacheAndRefresh={clearCacheAndRefresh}
+        />
+      </Suspense>
 
       {/* 더 보기 버튼 */}
       {!loading && hasMore && displayLibraries.length > 0 && (
