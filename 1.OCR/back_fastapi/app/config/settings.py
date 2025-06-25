@@ -41,9 +41,7 @@ class Settings:
     # React 등 프론트엔드에서 API 호출을 허용하기 위한 설정
     BACKEND_CORS_ORIGINS: list = [
         "http://localhost:3000",  # React 개발 서버
-        "http://localhost:3001",  # React 대체 포트
         "http://127.0.0.1:3000",  # React localhost
-        "http://127.0.0.1:3001",  # React 대체 포트
         "http://192.168.45.120:3000",  # React 서버 (네트워크 IP)
     ]
     
