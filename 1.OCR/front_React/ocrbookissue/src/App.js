@@ -2,13 +2,13 @@ import React, { useState, useEffect, Suspense, lazy } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import Main from "./components/Main";
+import Ocr from "./components/Ocr";
+import History from "./components/History";
 import Loading from "./components/Loading";
-// 페이지 컴포넌트 lazy import
-const Main = lazy(() => import("./components/Main"));
-const Ocr = lazy(() => import("./components/Ocr"));
+// Info, Library만 lazy import
 const Info = lazy(() => import("./components/Info"));
 const Library = lazy(() => import("./components/Library"));
-const History = lazy(() => import("./components/History"));
 
 function App() {
   const [loading, setLoading] = useState(false);
