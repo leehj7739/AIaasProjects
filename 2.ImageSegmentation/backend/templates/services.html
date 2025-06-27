@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이미지 세그멘테이션 서비스</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .main-layout {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .left-panel {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .right-panel {
+            flex: 1;
+            min-width: 0;
+            position: sticky;
+            top: 20px;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .service-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .service-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+        }
+
+        .service-card h3::before {
+            content: '';
+            width: 30px;
+            height: 30px;
+            margin-right: 10px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .service-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .service-form {
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 5px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .url-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 50px;
+            font-size: 1em;
+            margin: 20px 0;
+        }
+
+        .service-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .service-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+        }
+
+        .service-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            min-height: 400px;
+        }
+
+        .results-section:empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-style: italic;
+        }
+
+        .results-section:empty::before {
+            content: "결과가 여기에 표시됩니다";
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .result-card h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.3em;
+        }
+
+        .result-image {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 10px;
+            margin: 15px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .result-image:hover {
+            transform: scale(1.02);
+        }
+
+        .gif-result {
+            border: 3px solid #667eea;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3); }
+            50% { box-shadow: 0 5px 25px rgba(102, 126, 234, 0.6); }
+            100% { box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3); }
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #d63031;
+        }
+
+        .success {
+            background: #e6ffe6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #00b894;
+        }
+
+        .image-preview {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        /* 객체 추출 결과 그리드 스타일 */
+        .extracted-objects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .extracted-object-item {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 2px solid #f8f9fa;
+        }
+
+        .extracted-object-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+
+        .object-image-container {
+            width: 100%;
+            height: 200px;
+            overflow: hidden;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .extracted-object-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .extracted-object-image:hover {
+            transform: scale(1.05);
+        }
+
+        .object-info {
+            text-align: center;
+        }
+
+        .object-info h4 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .object-info p {
+            color: #666;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .main-layout {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .left-panel, .right-panel {
+                flex: none;
+                width: 100%;
+            }
+            
+            .right-panel {
+                position: static;
+            }
+            
+            .services-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+
+            .extracted-objects-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 15px;
+            }
+
+            .object-image-container {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 이미지 세그멘테이션 서비스</h1>
+            <p>AI로 이미지를 분석하고 다양한 서비스를 제공합니다</p>
+        </div>
+
+        <div class="content">
+            <div class="main-layout">
+                <!-- 왼쪽 패널: 업로드 및 서비스 -->
+                <div class="left-panel">
+                    <!-- 이미지 업로드 섹션 -->
+                    <div class="upload-section">
+                        <h2>📁 이미지 업로드</h2>
+                        
+                        <div class="upload-tabs">
+                            <button class="tab-button active" onclick="switchTab('file')">파일 업로드</button>
+                            <button class="tab-button" onclick="switchTab('url')">URL 입력</button>
+                        </div>
+
+                        <div id="file-tab" class="tab-content active">
+                            <div class="file-input-wrapper">
+                                <input type="file" id="imageInput" class="file-input" accept="image/*">
+                                <label for="imageInput" class="file-input-label">
+                                    📁 이미지 선택하기 (JPG, PNG, GIF 지원)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="url-tab" class="tab-content">
+                            <input type="url" id="imageUrl" class="url-input" 
+                                   placeholder="이미지 URL을 입력하세요">
+                        </div>
+                        
+                        <div class="image-preview" id="imagePreview"></div>
+                    </div>
+
+                    <!-- 서비스 그리드 -->
+                    <div class="services-grid">
+                        <!-- 1. 배경 제거 서비스 -->
+                        <div class="service-card">
+                            <h3>🖼️ 배경 제거</h3>
+                            <p>특정 객체의 배경을 제거하여 투명한 이미지를 생성합니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>대상 객체:</label>
+                                    <select id="bgTargetClass">
+                                        <option value="all">모든 객체</option>
+                                        <option value="person">사람</option>
+                                        <option value="car">자동차</option>
+                                        <option value="dog">강아지</option>
+                                        <option value="cat">고양이</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="bgIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>마스크 정밀도:</label>
+                                    <select id="bgMaskPrecision">
+                                        <option value="0.1">매우 높음 (가장 정밀)</option>
+                                        <option value="0.2">높음 (정밀)</option>
+                                        <option value="0.3" selected>보통 (기본값)</option>
+                                        <option value="0.4">낮음 (부드러운 경계)</option>
+                                        <option value="0.5">매우 낮음 (가장 부드러운)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('remove_background')">
+                                    배경 제거하기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. 배경 합성 서비스 -->
+                        <div class="service-card">
+                            <h3>🎭 배경 합성</h3>
+                            <p>특정 객체를 새로운 배경과 합성합니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>대상 객체:</label>
+                                    <select id="composeTargetClass">
+                                        <option value="all">모든 객체</option>
+                                        <option value="person">사람</option>
+                                        <option value="car">자동차</option>
+                                        <option value="dog">강아지</option>
+                                        <option value="cat">고양이</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>새 배경 업로드:</label>
+                                    <input type="file" id="backgroundImageInput" accept="image/*" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>또는 배경 URL:</label>
+                                    <input type="url" id="backgroundUrlInput" placeholder="배경 이미지 URL" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="composeIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>마스크 정밀도:</label>
+                                    <select id="composeMaskPrecision">
+                                        <option value="0.1">매우 높음 (가장 정밀)</option>
+                                        <option value="0.2">높음 (정밀)</option>
+                                        <option value="0.3" selected>보통 (기본값)</option>
+                                        <option value="0.4">낮음 (부드러운 경계)</option>
+                                        <option value="0.5">매우 낮음 (가장 부드러운)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('background_composition')">
+                                    배경 합성하기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 3. 객체 추출 서비스 -->
+                        <div class="service-card">
+                            <h3>✂️ 객체 추출</h3>
+                            <p>이미지에서 특정 객체들을 개별적으로 추출합니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>추출할 객체 (쉼표로 구분):</label>
+                                    <input type="text" id="extractClasses" placeholder="person,car,dog">
+                                </div>
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="extractIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('extract_objects')">
+                                    객체 추출하기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 4. 얼굴 뷰티 서비스 -->
+                        <div class="service-card">
+                            <h3>💄 얼굴 뷰티</h3>
+                            <p>얼굴에 자동으로 뷰티 필터를 적용합니다.</p>
+                            <div class="service-form">
+                                <button class="service-btn" onclick="callService('face_beauty')">
+                                    뷰티 필터 적용
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 5. 객체 카운팅 서비스 -->
+                        <div class="service-card">
+                            <h3>🔢 객체 카운팅</h3>
+                            <p>이미지에서 특정 객체들의 개수를 세어줍니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>카운팅할 객체 (쉼표로 구분):</label>
+                                    <input type="text" id="countClasses" placeholder="person,car">
+                                </div>
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="countIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('count_objects')">
+                                    객체 세기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6. 이미지 분석 서비스 -->
+                        <div class="service-card">
+                            <h3>📊 이미지 분석</h3>
+                            <p>이미지의 상세한 분석 정보를 제공합니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="analyzeIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('analyze_image')">
+                                    이미지 분석하기
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 7. 이미지 필터 서비스 -->
+                        <div class="service-card">
+                            <h3>🎨 이미지 필터</h3>
+                            <p>특정 객체에 다양한 필터를 적용합니다.</p>
+                            <div class="service-form">
+                                <div class="form-group">
+                                    <label>필터 종류:</label>
+                                    <select id="filterType">
+                                        <option value="blur">블러</option>
+                                        <option value="brightness">밝기 조정</option>
+                                        <option value="contrast">대비 조정</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>대상 객체:</label>
+                                    <select id="filterTargetClass">
+                                        <option value="person">사람</option>
+                                        <option value="car">자동차</option>
+                                        <option value="dog">강아지</option>
+                                        <option value="cat">고양이</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>중복 제거 강도:</label>
+                                    <select id="filterIoUThreshold">
+                                        <option value="0.3">낮음 (더 많은 객체 검출)</option>
+                                        <option value="0.5" selected>보통 (기본값)</option>
+                                        <option value="0.7">높음 (중복 제거 강화)</option>
+                                    </select>
+                                </div>
+                                <button class="service-btn" onclick="callService('apply_filter')">
+                                    필터 적용하기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 오른쪽 패널: 결과 표시 -->
+                <div class="right-panel">
+                    <div class="results-section" id="resultsSection">
+                        <div id="resultsContent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 로딩 스피너 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>처리 중입니다...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'file';
+
+        function switchTab(tab) {
+            // 탭 버튼 상태 변경
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 탭 내용 변경
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tab + '-tab').classList.add('active');
+
+            currentTab = tab;
+        }
+
+        // 이미지 미리보기
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    displayImagePreview(file);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // URL 입력 처리
+        document.getElementById('imageUrl').addEventListener('input', function() {
+            const url = this.value.trim();
+            const preview = document.getElementById('imagePreview');
+            
+            if (url) {
+                const isGif = url.toLowerCase().endsWith('.gif');
+                
+                if (isGif) {
+                    // GIF URL인 경우 움직이는 이미지로 표시
+                    preview.innerHTML = `
+                        <div style="text-align: center;">
+                            <h4>🎬 GIF 애니메이션 미리보기</h4>
+                            <img src="${url}" alt="미리보기" 
+                                 style="max-width: 100%; max-height: 300px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);"
+                                 onerror="this.parentElement.innerHTML='<p style=\'color: red;\'>이미지를 불러올 수 없습니다.</p>'">
+                            <p><small>${url}</small></p>
+                        </div>
+                    `;
+                } else {
+                    // 일반 이미지 URL
+                    preview.innerHTML = `
+                        <div style="text-align: center;">
+                            <h4>📷 이미지 미리보기</h4>
+                            <img src="${url}" alt="미리보기" 
+                                 style="max-width: 100%; max-height: 300px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);"
+                                 onerror="this.parentElement.innerHTML='<p style=\'color: red;\'>이미지를 불러올 수 없습니다.</p>'">
+                            <p><small>${url}</small></p>
+                        </div>
+                    `;
+                }
+                
+                // URL 입력 후 검출된 객체들 로드
+                loadDetectedObjectsFromUrl(url);
+            } else {
+                preview.innerHTML = '';
+            }
+        });
+
+        // 검출된 객체들 로드 (파일)
+        async function loadDetectedObjects(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('iou_threshold', 0.5);
+            
+            try {
+                const response = await fetch('/service/get_detected_objects', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateObjectSelects(result.detected_classes, result.object_counts);
+                }
+            } catch (error) {
+                console.log('검출된 객체 로드 실패:', error);
+            }
+        }
+
+        // 검출된 객체들 로드 (URL)
+        async function loadDetectedObjectsFromUrl(url) {
+            const formData = new FormData();
+            formData.append('image_url', url);
+            formData.append('iou_threshold', 0.5);
+            
+            try {
+                const response = await fetch('/service/get_detected_objects', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateObjectSelects(result.detected_classes, result.object_counts);
+                }
+            } catch (error) {
+                console.log('검출된 객체 로드 실패:', error);
+            }
+        }
+
+        // 객체 선택 목록 업데이트
+        function updateObjectSelects(detectedClasses, objectCounts) {
+            // 배경 제거 서비스
+            const bgSelect = document.getElementById('bgTargetClass');
+            updateSelectOptions(bgSelect, detectedClasses, objectCounts);
+            
+            // 배경 합성 서비스
+            const composeSelect = document.getElementById('composeTargetClass');
+            updateSelectOptions(composeSelect, detectedClasses, objectCounts);
+            
+            // 이미지 필터 서비스
+            const filterSelect = document.getElementById('filterTargetClass');
+            updateSelectOptions(filterSelect, detectedClasses, objectCounts);
+            
+            // 추출할 객체 입력 필드에 힌트 제공
+            const extractInput = document.getElementById('extractClasses');
+            extractInput.placeholder = `검출된 객체: ${detectedClasses.join(', ')}`;
+            
+            // 카운팅할 객체 입력 필드에 힌트 제공
+            const countInput = document.getElementById('countClasses');
+            countInput.placeholder = `검출된 객체: ${detectedClasses.join(', ')}`;
+            
+            // 검출 결과 표시
+            showDetectionResult(detectedClasses, objectCounts);
+        }
+
+        // 셀렉트 옵션 업데이트
+        function updateSelectOptions(selectElement, detectedClasses, objectCounts) {
+            // 기존 옵션 제거
+            selectElement.innerHTML = '';
+            
+            // "모든 객체" 옵션 추가 (배경 제거 및 배경 합성 서비스의 경우)
+            if (selectElement.id === 'bgTargetClass' || selectElement.id === 'composeTargetClass') {
+                const allOption = document.createElement('option');
+                allOption.value = 'all';
+                allOption.textContent = '모든 객체';
+                selectElement.appendChild(allOption);
+            }
+            
+            // 검출된 객체들로 옵션 생성
+            detectedClasses.forEach(cls => {
+                const option = document.createElement('option');
+                option.value = cls;
+                option.textContent = `${cls} (${objectCounts[cls]}개)`;
+                selectElement.appendChild(option);
+            });
+            
+            // 검출된 객체가 없으면 기본 옵션 추가
+            if (detectedClasses.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '검출된 객체가 없습니다';
+                option.disabled = true;
+                selectElement.appendChild(option);
+            }
+        }
+
+        // 검출 결과 표시
+        function showDetectionResult(detectedClasses, objectCounts) {
+            const detectionInfo = document.createElement('div');
+            detectionInfo.className = 'success';
+            detectionInfo.style.marginBottom = '20px';
+            
+            if (detectedClasses.length > 0) {
+                const totalObjects = Object.values(objectCounts).reduce((a, b) => a + b, 0);
+                detectionInfo.innerHTML = `
+                    <strong>🔍 검출된 객체:</strong> ${detectedClasses.join(', ')} 
+                    (총 ${totalObjects}개)
+                    <br><small>선택 목록이 자동으로 업데이트되었습니다.</small>
+                `;
+            } else {
+                detectionInfo.innerHTML = `
+                    <strong>⚠️ 검출된 객체가 없습니다.</strong>
+                    <br><small>다른 이미지를 시도해보세요.</small>
+                `;
+            }
+            
+            // 기존 검출 정보 제거
+            const existingInfo = document.querySelector('.success');
+            if (existingInfo && existingInfo.textContent.includes('검출된 객체')) {
+                existingInfo.remove();
+            }
+            
+            // 새로운 검출 정보 추가
+            const content = document.querySelector('.content');
+            content.insertBefore(detectionInfo, content.firstChild);
+        }
+
+        async function callService(serviceName) {
+            const formData = new FormData();
+            
+            // 이미지 추가
+            if (currentTab === 'file') {
+                const file = document.getElementById('imageInput').files[0];
+                if (!file) {
+                    showError('이미지 파일을 선택해주세요.');
+                    return;
+                }
+                formData.append('image', file);
+            } else {
+                const url = document.getElementById('imageUrl').value.trim();
+                if (!url) {
+                    showError('이미지 URL을 입력해주세요.');
+                    return;
+                }
+                formData.append('image_url', url);
+            }
+
+            // 서비스별 파라미터 추가
+            switch (serviceName) {
+                case 'remove_background':
+                    formData.append('target_class', document.getElementById('bgTargetClass').value);
+                    formData.append('iou_threshold', document.getElementById('bgIoUThreshold').value);
+                    formData.append('mask_precision', document.getElementById('bgMaskPrecision').value);
+                    break;
+                case 'background_composition':
+                    formData.append('target_class', document.getElementById('composeTargetClass').value);
+                    const backgroundImage = document.getElementById('backgroundImageInput').files[0];
+                    const backgroundUrl = document.getElementById('backgroundUrlInput').value.trim();
+                    
+                    if (!backgroundImage && !backgroundUrl) {
+                        showError('새 배경 이미지를 업로드하거나 URL을 입력해주세요.');
+                        return;
+                    }
+                    
+                    if (backgroundImage) {
+                        formData.append('background_image', backgroundImage);
+                    }
+                    if (backgroundUrl) {
+                        formData.append('background_url', backgroundUrl);
+                    }
+                    formData.append('iou_threshold', document.getElementById('composeIoUThreshold').value);
+                    formData.append('mask_precision', document.getElementById('composeMaskPrecision').value);
+                    break;
+                case 'extract_objects':
+                    formData.append('target_classes', document.getElementById('extractClasses').value);
+                    formData.append('iou_threshold', document.getElementById('extractIoUThreshold').value);
+                    break;
+                case 'face_beauty':
+                    break;
+                case 'count_objects':
+                    formData.append('target_classes', document.getElementById('countClasses').value);
+                    formData.append('iou_threshold', document.getElementById('countIoUThreshold').value);
+                    break;
+                case 'analyze_image':
+                    formData.append('iou_threshold', document.getElementById('analyzeIoUThreshold').value);
+                    break;
+                case 'apply_filter':
+                    formData.append('filter_type', document.getElementById('filterType').value);
+                    formData.append('target_class', document.getElementById('filterTargetClass').value);
+                    formData.append('iou_threshold', document.getElementById('filterIoUThreshold').value);
+                    break;
+            }
+
+            // UI 상태 변경
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            try {
+                const response = await fetch(`/service/${serviceName}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result, serviceName);
+                } else {
+                    showError(result.error || '서비스 처리 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                showError('네트워크 오류가 발생했습니다.');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayResults(result, serviceName) {
+            const resultsContent = document.getElementById('resultsContent');
+            let html = '';
+
+            // 중복 제거 정보 표시
+            const duplicateInfo = result.duplicates_removed ? 
+                '<div class="success" style="margin-bottom: 20px;">✅ 중복 검출이 자동으로 제거되었습니다.</div>' : '';
+
+            switch (serviceName) {
+                case 'remove_background':
+                case 'background_composition':
+                case 'face_beauty':
+                case 'apply_filter':
+                    const gifInfo = result.is_gif ? `
+                        <div class="success" style="margin-bottom: 20px;">
+                            <strong>🎬 GIF 애니메이션:</strong> ${result.frame_count}개 프레임 처리 완료
+                            <br><small>아래에서 움직이는 결과를 확인하세요.</small>
+                        </div>
+                    ` : '';
+                    
+                    const resultImage = result.is_gif ? 
+                        `<img src="/download/${result.filename}" alt="결과" class="result-image gif-result" style="max-height: 400px;">` :
+                        `<img src="data:image/jpeg;base64,${result.result_image}" alt="결과" class="result-image">`;
+                    
+                    html = `
+                        <div class="result-card">
+                            <h3>✅ ${getServiceName(serviceName)} 완료</h3>
+                            ${duplicateInfo}
+                            ${gifInfo}
+                            ${serviceName === 'background_composition' && result.composed_objects ? `
+                                <div class="success" style="margin-bottom: 20px;">
+                                    <strong>🎭 합성된 객체:</strong> ${result.composed_objects.length}개
+                                    <br><small>${result.composed_objects.map(obj => `${obj.class} (${(obj.confidence * 100).toFixed(1)}%)`).join(', ')}</small>
+                                </div>
+                            ` : ''}
+                            ${serviceName === 'remove_background' && result.extracted_objects ? `
+                                <div class="success" style="margin-bottom: 20px;">
+                                    <strong>🖼️ 추출된 객체:</strong> ${result.extracted_objects.length}개
+                                    <br><small>${result.extracted_objects.map(obj => `${obj.class} (${(obj.confidence * 100).toFixed(1)}%)`).join(', ')}</small>
+                                </div>
+                            ` : ''}
+                            ${resultImage}
+                            <p><a href="/download/${result.filename}" class="service-btn" 
+                                  style="text-decoration: none; display: inline-block;">
+                                💾 ${result.is_gif ? 'GIF 다운로드' : '결과 다운로드'}
+                            </a></p>
+                        </div>
+                    `;
+                    break;
+
+                case 'extract_objects':
+                    html = `
+                        <div class="result-card">
+                            <h3>✅ 객체 추출 완료</h3>
+                            ${duplicateInfo}
+                            <p>총 ${result.total_objects}개의 객체를 추출했습니다.</p>
+                            
+                            <div class="extracted-objects-grid">
+                                ${result.extracted_objects.map(obj => `
+                                    <div class="extracted-object-item">
+                                        <div class="object-image-container">
+                                            <img src="/download/${obj.filename}" 
+                                                 alt="${obj.class}" 
+                                                 class="extracted-object-image"
+                                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjhmOWZhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4='">
+                                        </div>
+                                        <div class="object-info">
+                                            <h4>${obj.class}</h4>
+                                            <p>신뢰도: ${(obj.confidence * 100).toFixed(1)}%</p>
+                                            <p>위치: (${obj.bbox[0].toFixed(0)}, ${obj.bbox[1].toFixed(0)})</p>
+                                            <a href="/download/${obj.filename}" class="download-btn">
+                                                💾 다운로드
+                                            </a>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'count_objects':
+                    html = `
+                        <div class="result-card">
+                            <h3>✅ 객체 카운팅 완료</h3>
+                            ${duplicateInfo}
+                            <p>총 ${result.total_objects}개의 객체를 발견했습니다.</p>
+                            <ul>
+                                ${Object.entries(result.object_counts).map(([obj, count]) => 
+                                    `<li>${obj}: ${count}개</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    break;
+
+                case 'analyze_image':
+                    const analysis = result.analysis;
+                    html = `
+                        <div class="result-card">
+                            <h3>✅ 이미지 분석 완료</h3>
+                            ${duplicateInfo}
+                            <p><strong>이미지 크기:</strong> ${analysis.image_size[1]}x${analysis.image_size[0]}</p>
+                            <p><strong>총 객체 수:</strong> ${analysis.total_objects}개</p>
+                            <p><strong>주요 객체:</strong> ${analysis.dominant_objects.join(', ')}</p>
+                            <h4>객체 상세 정보:</h4>
+                            <ul>
+                                ${analysis.objects.map(obj => 
+                                    `<li>${obj.class} (신뢰도: ${(obj.confidence * 100).toFixed(1)}%, 
+                                     면적: ${obj.mask_area || 'N/A'} 픽셀)</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    break;
+            }
+
+            resultsContent.innerHTML = html;
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function getServiceName(serviceName) {
+            const names = {
+                'remove_background': '배경 제거',
+                'background_composition': '배경 합성',
+                'extract_objects': '객체 추출',
+                'face_beauty': '얼굴 뷰티',
+                'count_objects': '객체 카운팅',
+                'analyze_image': '이미지 분석',
+                'apply_filter': '이미지 필터'
+            };
+            return names[serviceName] || serviceName;
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            
+            const content = document.querySelector('.content');
+            content.insertBefore(errorDiv, content.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        // 이미지 미리보기 표시
+        function displayImagePreview(file) {
+            const preview = document.getElementById('imagePreview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const isGif = file.name.toLowerCase().endsWith('.gif');
+                    
+                    if (isGif) {
+                        // GIF 파일인 경우 움직이는 이미지로 표시
+                        preview.innerHTML = `
+                            <div style="text-align: center;">
+                                <h4>🎬 GIF 애니메이션 미리보기</h4>
+                                <img src="${e.target.result}" alt="미리보기" 
+                                     style="max-width: 100%; max-height: 300px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                                <p><small>${file.name} (${(file.size / 1024).toFixed(1)} KB)</small></p>
+                            </div>
+                        `;
+                    } else {
+                        // 일반 이미지
+                        preview.innerHTML = `
+                            <div style="text-align: center;">
+                                <h4>📷 이미지 미리보기</h4>
+                                <img src="${e.target.result}" alt="미리보기" 
+                                     style="max-width: 100%; max-height: 300px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                                <p><small>${file.name} (${(file.size / 1024).toFixed(1)} KB)</small></p>
+                            </div>
+                        `;
+                    }
+                    
+                    // 이미지 업로드 후 검출된 객체들 로드
+                    loadDetectedObjects(file);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+            }
+        }
+    </script>
+</body>
+</html>

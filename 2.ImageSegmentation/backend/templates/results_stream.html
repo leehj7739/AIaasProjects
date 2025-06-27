@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Results Stream</title>
+    <style>
+        body { background: #222; color: #fff; font-family: Arial, sans-serif; text-align: center; }
+        .container { margin: 40px auto; max-width: 800px; }
+        .img-box { background: #111; border-radius: 10px; padding: 20px; box-shadow: 0 0 20px #000; }
+        img { max-width: 100%; border-radius: 10px; margin-bottom: 10px; }
+        .filename { color: #0f0; font-size: 1.1em; margin-bottom: 10px; }
+        .error { color: #f55; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Results Stream (SSE/UDP Style)</h1>
+        <div class="img-box">
+            <div class="filename" id="filename">-</div>
+            <img id="resultImg" src="" alt="Result Image">
+        </div>
+        <div class="error" id="errorMsg"></div>
+    </div>
+    <script>
+        function fetchLatestImage() {
+            fetch('/api/latest_result_image')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('resultImg').src = 'data:image/jpeg;base64,' + data.image;
+                        document.getElementById('filename').textContent = data.filename;
+                        document.getElementById('errorMsg').textContent = '';
+                    } else {
+                        document.getElementById('errorMsg').textContent = data.error || 'No image.';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('errorMsg').textContent = 'Network error.';
+                });
+        }
+        // SSE로 새 이미지 알림 받기
+        const evtSource = new EventSource('/events');
+        evtSource.onmessage = function(event) {
+            fetchLatestImage();
+        };
+        // 최초 1회 표시
+        fetchLatestImage();
+    </script>
+</body>
+</html> 

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO 이미지 세그멘테이션 & 얼굴 랜드마크</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .mode-selector {
+            margin-bottom: 30px;
+        }
+
+        .mode-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 5px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .mode-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .upload-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 5px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .url-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 50px;
+            font-size: 1em;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .url-input::placeholder {
+            color: #999;
+        }
+
+        .detect-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+            margin-top: 20px;
+        }
+
+        .detect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(240, 147, 251, 0.6);
+        }
+
+        .detect-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .image-preview {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .results-section {
+            margin-top: 40px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .result-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .detection-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .detection-item {
+            background: white;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detection-item strong {
+            color: #667eea;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #d63031;
+        }
+
+        .success {
+            background: #e6ffe6;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #00b894;
+        }
+
+        .example-urls {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .example-urls a {
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        .example-urls a:hover {
+            text-decoration: underline;
+        }
+
+        .mode-description {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+
+            .upload-tabs, .mode-tabs {
+                flex-direction: column;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 YOLO & 얼굴 랜드마크</h1>
+            <p>AI로 이미지에서 객체를 감지하고 얼굴 부위를 분석하세요</p>
+        </div>
+
+        <div class="content">
+            <div class="upload-section">
+                <h2>이미지 분석</h2>
+                
+                <div class="mode-selector">
+                    <div class="mode-tabs">
+                        <button class="mode-tab active" onclick="switchMode('yolo')">🎯 객체 감지</button>
+                        <button class="mode-tab" onclick="switchMode('face_landmarks')">👤 얼굴 랜드마크</button>
+                    </div>
+                    <div class="mode-description" id="modeDescription">
+                        <strong>객체 감지:</strong> YOLO 모델을 사용하여 이미지에서 사람, 동물, 물체 등을 감지하고 세그멘테이션합니다.
+                    </div>
+                </div>
+
+                <div class="upload-tabs">
+                    <button class="tab-button active" onclick="switchTab('file')">📁 파일 업로드</button>
+                    <button class="tab-button" onclick="switchTab('url')">🌐 URL 입력</button>
+                </div>
+
+                <div id="file-tab" class="tab-content active">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="imageInput" class="file-input" accept="image/*">
+                        <label for="imageInput" class="file-input-label">
+                            📁 이미지 선택하기
+                        </label>
+                    </div>
+                </div>
+
+                <div id="url-tab" class="tab-content">
+                    <input type="url" id="imageUrl" class="url-input" 
+                           placeholder="이미지 URL을 입력하세요 (예: https://example.com/image.jpg)">
+                    <div class="example-urls">
+                        예시: 
+                        <a href="#" onclick="setExampleUrl('https://ultralytics.com/images/bus.jpg')">버스 이미지</a> |
+                        <a href="#" onclick="setExampleUrl('https://ultralytics.com/images/zidane.jpg')">사람 이미지</a>
+                    </div>
+                </div>
+                
+                <div class="image-preview" id="imagePreview"></div>
+                
+                <button class="detect-btn" id="detectBtn" disabled>
+                    🔍 분석하기
+                </button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>AI가 이미지를 분석하고 있습니다...</p>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h2>📊 분석 결과</h2>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <h3 id="resultTitle">🎯 감지된 객체</h3>
+                        <div class="detection-list" id="detectionList"></div>
+                    </div>
+                    <div class="result-card">
+                        <h3>🖼️ 결과 이미지</h3>
+                        <div id="resultImage"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const imageUrl = document.getElementById('imageUrl');
+        const imagePreview = document.getElementById('imagePreview');
+        const detectBtn = document.getElementById('detectBtn');
+        const loading = document.getElementById('loading');
+        const resultsSection = document.getElementById('resultsSection');
+        const detectionList = document.getElementById('detectionList');
+        const resultImage = document.getElementById('resultImage');
+        const resultTitle = document.getElementById('resultTitle');
+        const modeDescription = document.getElementById('modeDescription');
+
+        let currentTab = 'file';
+        let currentMode = 'yolo';
+
+        function switchMode(mode) {
+            // 모드 탭 버튼 상태 변경
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            currentMode = mode;
+            
+            // 모드 설명 업데이트
+            if (mode === 'yolo') {
+                modeDescription.innerHTML = '<strong>객체 감지:</strong> YOLO 모델을 사용하여 이미지에서 사람, 동물, 물체 등을 감지하고 세그멘테이션합니다.';
+                resultTitle.textContent = '🎯 감지된 객체';
+            } else {
+                modeDescription.innerHTML = '<strong>얼굴 랜드마크:</strong> MediaPipe를 사용하여 얼굴의 눈, 코, 입, 귀 등의 세부 부위를 정확히 검출합니다.';
+                resultTitle.textContent = '👤 검출된 얼굴 부위';
+            }
+            
+            // 이미지 미리보기 초기화
+            imagePreview.innerHTML = '';
+            detectBtn.disabled = true;
+        }
+
+        function switchTab(tab) {
+            // 탭 버튼 상태 변경
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 탭 내용 변경
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tab + '-tab').classList.add('active');
+
+            currentTab = tab;
+            
+            // 이미지 미리보기 초기화
+            imagePreview.innerHTML = '';
+            detectBtn.disabled = true;
+        }
+
+        function setExampleUrl(url) {
+            imageUrl.value = url;
+            validateInput();
+        }
+
+        function validateInput() {
+            if (currentTab === 'file') {
+                detectBtn.disabled = !imageInput.files[0];
+            } else {
+                detectBtn.disabled = !imageUrl.value.trim();
+            }
+        }
+
+        // 파일 업로드 처리
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.innerHTML = `<img src="${e.target.result}" alt="미리보기">`;
+                    detectBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // URL 입력 처리
+        imageUrl.addEventListener('input', validateInput);
+        imageUrl.addEventListener('paste', function() {
+            setTimeout(validateInput, 100);
+        });
+
+        // 객체 감지 실행
+        detectBtn.addEventListener('click', async function() {
+            // UI 상태 변경
+            detectBtn.disabled = true;
+            loading.style.display = 'block';
+            resultsSection.style.display = 'none';
+
+            const formData = new FormData();
+
+            if (currentTab === 'file') {
+                const file = imageInput.files[0];
+                if (!file) return;
+                formData.append('image', file);
+            } else {
+                const url = imageUrl.value.trim();
+                if (!url) return;
+                formData.append('image_url', url);
+            }
+
+            // 모드 추가
+            formData.append('mode', currentMode);
+
+            try {
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 결과 표시
+                    displayResults(result);
+                } else {
+                    showError(result.error || '처리 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                showError('네트워크 오류가 발생했습니다.');
+            } finally {
+                detectBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+
+        function displayResults(result) {
+            // 감지된 객체 목록 표시
+            detectionList.innerHTML = '';
+            
+            // 사람 감지 개수 표시 (YOLO 모드일 때만)
+            if (result.mode === 'yolo' && result.person_count !== undefined) {
+                const personInfo = document.createElement('div');
+                personInfo.className = 'detection-item';
+                personInfo.style.backgroundColor = '#e8f5e8';
+                personInfo.style.borderLeftColor = '#28a745';
+                personInfo.innerHTML = `
+                    <strong>👥 People Detection</strong><br>
+                    People Count: <strong>${result.person_count}</strong>
+                `;
+                detectionList.appendChild(personInfo);
+            }
+            
+            if (result.detections.length === 0) {
+                detectionList.innerHTML += '<p>감지된 객체가 없습니다.</p>';
+            } else {
+                result.detections.forEach((detection, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'detection-item';
+                    
+                    if (result.mode === 'face_landmarks') {
+                        item.innerHTML = `
+                            <strong>${detection.class_name}</strong><br>
+                            랜드마크 수: ${detection.landmarks ? detection.landmarks.length : 0}개<br>
+                            위치: [${detection.bbox.map(x => Math.round(x)).join(', ')}]<br>
+                            면적: ${Math.round(detection.area)} 픽셀
+                        `;
+                    } else {
+                        item.innerHTML = `
+                            <strong>${detection.class_name}</strong><br>
+                            신뢰도: ${(detection.confidence * 100).toFixed(1)}%<br>
+                            위치: [${detection.bbox.map(x => Math.round(x)).join(', ')}]<br>
+                            면적: ${Math.round(detection.area)} 픽셀
+                        `;
+                    }
+                    
+                    detectionList.appendChild(item);
+                });
+            }
+
+            // 결과 이미지 표시
+            if (result.result_image) {
+                resultImage.innerHTML = `
+                    <img src="data:image/jpeg;base64,${result.result_image}" 
+                         alt="분석 결과" style="max-width: 100%; border-radius: 10px;">
+                    <br><br>
+                    <a href="/result/${result.result_filename}" 
+                       class="detect-btn" style="text-decoration: none; display: inline-block;">
+                        💾 결과 이미지 다운로드
+                    </a>
+                `;
+            }
+
+            resultsSection.style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            
+            const content = document.querySelector('.content');
+            content.insertBefore(errorDiv, content.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html> 
