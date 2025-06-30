@@ -444,7 +444,10 @@ export default function Library() {
         });
         
         setLibraries(processedLibraries);
+        // ISBN 검색 결과를 displayLibraries에도 설정
+        setDisplayLibraries(processedLibraries);
         setHasMore(false); // ISBN 검색 결과는 한 번에 모든 결과를 가져옴
+        setLoading(false); // 로딩 상태 해제
         
       } catch (error) {
         // 파싱 실패 시 기존 방식으로 도서관 데이터 로드
