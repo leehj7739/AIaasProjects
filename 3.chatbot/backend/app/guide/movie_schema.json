@@ -1,0 +1,28 @@
+{
+  "schema": {
+    "nodes": {
+      "Movie": {
+        "url": "url"
+      }
+    },
+    "relationships": {
+      "RATED": {
+        "rating": "float"
+      }
+    },
+    "relations": [
+      "(:Actor)-[:ACTED_IN]->(:Movie)",
+      "(:Actor)-[:ACTED_IN]->(:Movie)",
+      "(:Actor)-[:DIRECTED]->(:Movie)",
+      "(:Director)-[:ACTED_IN]->(:Movie)",
+      "(:Director)-[:DIRECTED]->(:Movie)",
+      "(:Director)-[:DIRECTED]->(:Movie)",
+      "(:Movie)-[:IN_GENRE]->(:Genre)",
+      "(:Person)-[:ACTED_IN]->(:Movie)",
+      "(:Person)-[:ACTED_IN]->(:Movie)",
+      "(:Person)-[:DIRECTED]->(:Movie)",
+      "(:Person)-[:DIRECTED]->(:Movie)",
+      "(:User)-[:RATED]->(:Movie)"
+    ]
+  }
+}
