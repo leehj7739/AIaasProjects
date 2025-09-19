@@ -21,6 +21,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+
 class SegmentationServices:
     def __init__(self):
         """세그멘테이션 서비스 초기화"""
@@ -366,6 +367,9 @@ class SegmentationServices:
 
 # YOLO 모델 로드 (person 클래스만 사용)
 model = YOLO('yolov8n-seg.pt')  # 필요시 경로 수정
+#model = YOLO('yolov8s-seg.pt')
+#model = YOLO('yolo11n-seg.pt')
+
 
 UPLOADS_DIR = 'uploads'
 RESULTS_DIR = 'results'
@@ -622,3 +626,5 @@ def main():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 
+    
+    
